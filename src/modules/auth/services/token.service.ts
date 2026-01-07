@@ -50,13 +50,15 @@ export class TokenService {
     try {
       const payload = this.jwtService.verify(token, {
         secret: this.configService.get<string>('JWT_SECRET'),
-      }) as TokenPayload;
+      });
 
       if (!payload.sessionId) {
         throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
       }
 
-      const session = await this.sessionService.getById(payload.sessionId);
+      const session = await this.sessionService.getById(
+        payload.sessionId as string,
+      );
       if (!session) {
         throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
       }
@@ -71,13 +73,15 @@ export class TokenService {
     try {
       const payload = this.jwtService.verify(token, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      }) as TokenPayload;
+      });
 
       if (!payload.sessionId) {
         throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
       }
 
-      const session = await this.sessionService.getById(payload.sessionId);
+      const session = await this.sessionService.getById(
+        payload.sessionId as string,
+      );
 
       if (!session || token !== session.refreshToken) {
         throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
