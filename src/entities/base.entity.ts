@@ -1,8 +1,5 @@
-import { validateOrReject } from 'class-validator';
 import {
   BaseEntity as TypeormBaseEntity,
-  BeforeInsert,
-  BeforeUpdate,
   CreateDateColumn,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -17,10 +14,4 @@ export class BaseEntity extends TypeormBaseEntity {
 
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
-
-  @BeforeInsert()
-  @BeforeUpdate()
-  async validate() {
-    await validateOrReject(this);
-  }
 }

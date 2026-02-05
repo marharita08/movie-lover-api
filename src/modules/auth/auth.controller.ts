@@ -1,4 +1,14 @@
-import { Body, Post, Headers, Ip, Res, Delete, Get, Req } from '@nestjs/common';
+import {
+  Body,
+  Post,
+  Headers,
+  Ip,
+  Res,
+  Delete,
+  Get,
+  Req,
+  Controller,
+} from '@nestjs/common';
 import { AuthService } from './services';
 import { SignUpDto } from './dto';
 import { LoginDto } from './dto/login.dto';
@@ -14,6 +24,7 @@ const COOKIE_OPTIONS: CookieOptions = {
   maxAge: COOKIE_EXPIRE_TIME,
 };
 
+@Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -39,7 +50,7 @@ export class AuthController {
 
     response.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
 
-    return { accessToken, refreshToken };
+    return { accessToken };
   }
 
   @Post('verify-email')
@@ -55,7 +66,7 @@ export class AuthController {
 
     response.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
 
-    return { accessToken, refreshToken };
+    return { accessToken };
   }
 
   @Delete('logout')

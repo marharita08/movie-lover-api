@@ -1,9 +1,15 @@
 import { BadRequestException } from '@nestjs/common';
 import { Otp } from 'src/entities/otp.entity';
 import { Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 
+@Injectable()
 export class OtpService {
-  constructor(private readonly otpRepository: Repository<Otp>) {}
+  constructor(
+    @InjectRepository(Otp)
+    private readonly otpRepository: Repository<Otp>,
+  ) {}
 
   generateCode(): number {
     return Math.floor(1000 + Math.random() * 9000);

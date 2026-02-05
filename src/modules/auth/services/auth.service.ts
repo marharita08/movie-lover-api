@@ -1,4 +1,8 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { UserService } from '../../user';
 import { SignUpDto } from '../dto/sign-up.dto';
 import { HashService } from './hash.service';
@@ -10,6 +14,7 @@ import { OtpService } from 'src/modules/otp/otp.service';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { EmailService } from 'src/modules/email/email.service';
 
+@Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UserService,
@@ -32,7 +37,7 @@ export class AuthService {
       throw new ConflictException('Email already taken');
     }
 
-    const passwordHash = this.hashService.hash(signUpDto.password);
+    const passwordHash = await this.hashService.hash(signUpDto.password);
 
     const user = await this.userService.create({
       name: signUpDto.name,
@@ -60,7 +65,7 @@ export class AuthService {
     userAgent: string,
   ) {
     const { email, code } = verifyEmailDto;
-    const user = await this.userService.getByEmail(email);
+    const user = await this.userService.getByEmailOrThrow(email);
 
     await this.otpService.verifyAndDelete(email, code);
     await this.userService.update(user.id, {
@@ -85,7 +90,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isPasswordValid = this.hashService.compare(
+    const isPasswordValid = await this.hashService.compare(
       password,
       user.passwordHash,
     );

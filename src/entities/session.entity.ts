@@ -1,7 +1,5 @@
-import { validateOrReject } from 'class-validator';
 import {
-  BeforeInsert,
-  BeforeUpdate,
+  Column,
   CreateDateColumn,
   Entity,
   JoinColumn,
@@ -17,8 +15,10 @@ export class Session {
   @PrimaryColumn()
   id: string;
 
+  @Column()
   userId: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
   refreshToken?: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
@@ -37,10 +37,4 @@ export class Session {
     onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
   updatedAt: Date;
-
-  @BeforeInsert()
-  @BeforeUpdate()
-  async validate() {
-    await validateOrReject(this);
-  }
 }
