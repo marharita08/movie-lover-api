@@ -3,7 +3,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { UserService } from '../../user';
+import { UserDto, UserService } from '../../user';
 import { SignUpDto } from '../dto/sign-up.dto';
 import { HashService } from './hash.service';
 import { createHash } from 'crypto';
@@ -13,6 +13,10 @@ import { LoginDto } from '../dto/login.dto';
 import { OtpService } from 'src/modules/otp/otp.service';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { EmailService } from 'src/modules/email/email.service';
+import { OtpPurpose } from 'src/entities';
+import { getOtpEmailMessage } from '../const/otp-email-message';
+import { OtpPurposeToEmailSubject } from '../const/otp-purpose-to-email-subject';
+import { SendOtpDto } from '../dto';
 
 @Injectable()
 export class AuthService {
@@ -47,13 +51,15 @@ export class AuthService {
       passwordHash,
     });
 
-    const code = await this.otpService.create(user.email);
+    const code = await this.otpService.create(
+      user.email,
+      OtpPurpose.EMAIL_VERIFICATION,
+    );
 
     await this.emailService.sendEmail(
       user.email,
       'Movie Lover - Email Verification',
-      `Your verification code is ${code}. This code will expire in 10 minutes.`,
-      `Your verification code is ${code}. This code will expire in 10 minutes.`,
+      getOtpEmailMessage(code),
     );
 
     return { message: 'We sent you an email with a verification code' };
@@ -67,7 +73,11 @@ export class AuthService {
     const { email, code } = verifyEmailDto;
     const user = await this.userService.getByEmailOrThrow(email);
 
-    await this.otpService.verifyAndDelete(email, code);
+    await this.otpService.verifyAndDelete(
+      email,
+      code,
+      OtpPurpose.EMAIL_VERIFICATION,
+    );
     await this.userService.update(user.id, {
       isEmailVerified: true,
       lastLoginAt: new Date(),
@@ -112,5 +122,22 @@ export class AuthService {
     const session = await this.tokenService.verifyRefreshToken(refreshToken);
 
     return this.tokenService.generateTokensPair(session);
+  }
+
+  public async getUser(userId: string): Promise<UserDto> {
+    return this.userService.getById(userId);
+  }
+
+  public async sendOtp(sendOtpDto: SendOtpDto) {
+    const { email, purpose } = sendOtpDto;
+    const code = await this.otpService.create(email, purpose);
+
+    await this.emailService.sendEmail(
+      email,
+      `Movie Lover - ${OtpPurposeToEmailSubject[purpose]}`,
+      getOtpEmailMessage(code),
+    );
+
+    return { message: 'We sent you an email with a verification code' };
   }
 }

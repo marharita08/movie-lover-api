@@ -13,6 +13,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User, Otp, Session } from 'src/entities';
 import { OtpModule } from '../otp/otp.module';
 import { EmailModule } from '../email/email.module';
+import { AccessTokenStrategy } from './strategies/access-token.strategy';
 
 @Module({
   imports: [
@@ -23,7 +24,13 @@ import { EmailModule } from '../email/email.module';
     OtpModule,
     EmailModule,
   ],
-  providers: [AuthService, HashService, SessionService, TokenService],
+  providers: [
+    AuthService,
+    HashService,
+    SessionService,
+    TokenService,
+    AccessTokenStrategy,
+  ],
   controllers: [AuthController],
   exports: [AuthService],
 })

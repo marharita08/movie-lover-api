@@ -10,11 +10,12 @@ import {
   Controller,
 } from '@nestjs/common';
 import { AuthService } from './services';
-import { SignUpDto } from './dto';
+import { SendOtpDto, SignUpDto } from './dto';
 import { LoginDto } from './dto/login.dto';
 import type { CookieOptions, Response, Request } from 'express';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { Public } from './decorators/public.decorator';
+import { GetUser } from './decorators/get-user.decorator';
 
 const COOKIE_EXPIRE_TIME = 15 * 24 * 60 * 60 * 1000; // 15 days
 const COOKIE_OPTIONS: CookieOptions = {
@@ -91,5 +92,16 @@ export class AuthController {
     res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
 
     return { accessToken };
+  }
+
+  @Get('user')
+  public async getUser(@GetUser('id') userId: string) {
+    return this.authService.getUser(userId);
+  }
+
+  @Public()
+  @Post('send-otp')
+  public async sendOtp(@Body() sendOtpDto: SendOtpDto) {
+    return this.authService.sendOtp(sendOtpDto);
   }
 }
