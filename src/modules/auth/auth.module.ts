@@ -1,18 +1,19 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Otp, Session, User } from 'src/entities';
+
+import { EmailModule } from '../email/email.module';
+import { OtpModule } from '../otp/otp.module';
+import { UserModule } from '../user';
+import { AuthController } from './auth.controller';
 import {
   AuthService,
   HashService,
   SessionService,
   TokenService,
 } from './services';
-import { UserModule } from '../user';
-import { AuthController } from './auth.controller';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { User, Otp, Session } from 'src/entities';
-import { OtpModule } from '../otp/otp.module';
-import { EmailModule } from '../email/email.module';
 import { AccessTokenStrategy } from './strategies/access-token.strategy';
 
 @Module({

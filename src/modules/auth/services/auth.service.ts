@@ -3,20 +3,22 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { UserDto, UserService } from '../../user';
-import { SignUpDto } from '../dto/sign-up.dto';
-import { HashService } from './hash.service';
 import { createHash } from 'crypto';
-import { SessionService } from './session.service';
-import { TokenService } from './token.service';
-import { LoginDto } from '../dto/login.dto';
-import { OtpService } from 'src/modules/otp/otp.service';
-import { VerifyEmailDto } from '../dto/verify-email.dto';
-import { EmailService } from 'src/modules/email/email.service';
 import { OtpPurpose } from 'src/entities';
+import { EmailService } from 'src/modules/email/email.service';
+import { OtpService } from 'src/modules/otp/otp.service';
+
+import { UserDto, UserService } from '../../user';
 import { getOtpEmailMessage } from '../const/otp-email-message';
 import { OtpPurposeToEmailSubject } from '../const/otp-purpose-to-email-subject';
 import { SendOtpDto } from '../dto';
+import { LoginDto } from '../dto/login.dto';
+import { SignUpDto } from '../dto/sign-up.dto';
+import { UpdateUserDto } from '../dto/update-user.dto';
+import { VerifyEmailDto } from '../dto/verify-email.dto';
+import { HashService } from './hash.service';
+import { SessionService } from './session.service';
+import { TokenService } from './token.service';
 
 @Injectable()
 export class AuthService {
@@ -139,5 +141,13 @@ export class AuthService {
     );
 
     return { message: 'We sent you an email with a verification code' };
+  }
+
+  public async updateUser(id: string, updateUserDto: UpdateUserDto) {
+    return this.userService.update(id, updateUserDto);
+  }
+
+  public async deleteUser(id: string) {
+    return this.userService.delete(id);
   }
 }

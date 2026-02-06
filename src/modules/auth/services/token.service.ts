@@ -5,8 +5,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Session } from 'src/entities';
 import type { StringValue } from 'ms';
+import { Session } from 'src/entities';
 
 import { SessionService } from './session.service';
 

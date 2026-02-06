@@ -1,8 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
-import { Otp, OtpPurpose } from 'src/entities/otp.entity';
-import { Repository } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Otp, OtpPurpose } from 'src/entities/otp.entity';
+import { Repository } from 'typeorm';
 
 const RESEND_COOLDOWN_MS = 60_000;
 

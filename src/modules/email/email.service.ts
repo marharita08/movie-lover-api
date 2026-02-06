@@ -5,9 +5,9 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  SendSmtpEmail,
   TransactionalEmailsApi,
   TransactionalEmailsApiApiKeys,
-  SendSmtpEmail,
 } from '@sendinblue/client';
 
 @Injectable()

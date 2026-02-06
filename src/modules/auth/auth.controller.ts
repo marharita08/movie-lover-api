@@ -1,21 +1,25 @@
 import {
   Body,
-  Post,
-  Headers,
-  Ip,
-  Res,
+  Controller,
   Delete,
   Get,
+  Headers,
+  Ip,
+  Param,
+  Patch,
+  Post,
   Req,
-  Controller,
+  Res,
 } from '@nestjs/common';
-import { AuthService } from './services';
+import type { CookieOptions, Request, Response } from 'express';
+
+import { GetUser } from './decorators/get-user.decorator';
+import { Public } from './decorators/public.decorator';
 import { SendOtpDto, SignUpDto } from './dto';
 import { LoginDto } from './dto/login.dto';
-import type { CookieOptions, Response, Request } from 'express';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
-import { Public } from './decorators/public.decorator';
-import { GetUser } from './decorators/get-user.decorator';
+import { AuthService } from './services';
 
 const COOKIE_EXPIRE_TIME = 15 * 24 * 60 * 60 * 1000; // 15 days
 const COOKIE_OPTIONS: CookieOptions = {
@@ -103,5 +107,18 @@ export class AuthController {
   @Post('send-otp')
   public async sendOtp(@Body() sendOtpDto: SendOtpDto) {
     return this.authService.sendOtp(sendOtpDto);
+  }
+
+  @Patch('user/:id')
+  public async updateUser(
+    @Body() updateUserDto: UpdateUserDto,
+    @Param('id') id: string,
+  ) {
+    return this.authService.updateUser(id, updateUserDto);
+  }
+
+  @Delete('user/:id')
+  public async deleteUser(@Param('id') id: string) {
+    return this.authService.deleteUser(id);
   }
 }

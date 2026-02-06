@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsEnum } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty } from 'class-validator';
 import { OtpPurpose } from 'src/entities';
 
 export class SendOtpDto {
