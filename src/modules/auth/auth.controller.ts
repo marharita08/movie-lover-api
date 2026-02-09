@@ -20,6 +20,7 @@ import { LoginDto } from './dto/login.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { AuthService } from './services';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 const COOKIE_EXPIRE_TIME = 15 * 24 * 60 * 60 * 1000; // 15 days
 const COOKIE_OPTIONS: CookieOptions = {
@@ -120,5 +121,11 @@ export class AuthController {
   @Delete('user/:id')
   public async deleteUser(@Param('id') id: string) {
     return this.authService.deleteUser(id);
+  }
+
+  @Post('forgot-password')
+  @Public()
+  public async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto);
   }
 }

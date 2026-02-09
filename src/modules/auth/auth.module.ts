@@ -5,15 +5,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Otp, Session, User } from 'src/entities';
 
 import { EmailModule } from '../email/email.module';
+import { HashModule } from '../hash/hash.module';
 import { OtpModule } from '../otp/otp.module';
+import { ResetPasswordTokenModule } from '../reset-password-token/reset-password-token.module';
 import { UserModule } from '../user';
 import { AuthController } from './auth.controller';
-import {
-  AuthService,
-  HashService,
-  SessionService,
-  TokenService,
-} from './services';
+import { AuthService, SessionService, TokenService } from './services';
 import { AccessTokenStrategy } from './strategies/access-token.strategy';
 
 @Module({
@@ -24,14 +21,10 @@ import { AccessTokenStrategy } from './strategies/access-token.strategy';
     ConfigModule,
     OtpModule,
     EmailModule,
+    HashModule,
+    ResetPasswordTokenModule,
   ],
-  providers: [
-    AuthService,
-    HashService,
-    SessionService,
-    TokenService,
-    AccessTokenStrategy,
-  ],
+  providers: [AuthService, SessionService, TokenService, AccessTokenStrategy],
   controllers: [AuthController],
   exports: [AuthService],
 })

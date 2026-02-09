@@ -3,20 +3,26 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { OtpPurpose } from 'src/entities';
 import { EmailService } from 'src/modules/email/email.service';
+import { HashService } from 'src/modules/hash/hash.service';
 import { OtpService } from 'src/modules/otp/otp.service';
+import { ResetPasswordTokenService } from 'src/modules/reset-password-token/reset-password-token.service';
 
 import { UserDto, UserService } from '../../user';
-import { getOtpEmailMessage } from '../const/otp-email-message';
-import { OtpPurposeToEmailSubject } from '../const/otp-purpose-to-email-subject';
-import { SendOtpDto } from '../dto';
-import { LoginDto } from '../dto/login.dto';
-import { SignUpDto } from '../dto/sign-up.dto';
-import { UpdateUserDto } from '../dto/update-user.dto';
-import { VerifyEmailDto } from '../dto/verify-email.dto';
-import { HashService } from './hash.service';
+import { getOtpEmailMessage, OtpPurposeToEmailSubject } from '../const';
+import {
+  LoginDto,
+  SendOtpDto,
+  SignUpDto,
+  UpdateUserDto,
+  VerifyEmailDto,
+} from '../dto';
+import { ChangePasswordDto } from '../dto/change-password.dto';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { ResetPasswordDto } from '../dto/reset-password.dto';
+import { VerifyResetPasswordOtpDto } from '../dto/verify-reset-password-otp.dto';
 import { SessionService } from './session.service';
 import { TokenService } from './token.service';
 
@@ -29,12 +35,17 @@ export class AuthService {
     private readonly tokenService: TokenService,
     private readonly otpService: OtpService,
     private readonly emailService: EmailService,
+    private readonly resetPasswordTokenService: ResetPasswordTokenService,
   ) {}
 
   public generateSessionId(userId: string, ip: string, userAgent: string) {
     return createHash('sha256')
       .update(JSON.stringify({ ip, userAgent, userId }))
       .digest('base64');
+  }
+
+  public generateResetPasswordToken() {
+    return randomBytes(32).toString('hex');
   }
 
   async signUp(signUpDto: SignUpDto) {
@@ -149,5 +160,50 @@ export class AuthService {
 
   public async deleteUser(id: string) {
     return this.userService.delete(id);
+  }
+
+  public async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    const { email } = forgotPasswordDto;
+    await this.userService.getByEmailOrThrow(email);
+    const code = await this.otpService.create(email, OtpPurpose.RESET_PASSWORD);
+
+    await this.emailService.sendEmail(
+      email,
+      'Movie Lover - Password Reset',
+      getOtpEmailMessage(code),
+    );
+
+    return { message: 'We sent you an email with a reset code' };
+  }
+
+  public async verifyResetPasswordOtp(
+    verifyResetPasswordOtpDto: VerifyResetPasswordOtpDto,
+  ) {
+    const { email, code } = verifyResetPasswordOtpDto;
+    const user = await this.userService.getByEmailOrThrow(email);
+    await this.otpService.verifyAndDelete(
+      email,
+      code,
+      OtpPurpose.RESET_PASSWORD,
+    );
+    const token = await this.resetPasswordTokenService.create(user.id);
+
+    return { token };
+  }
+
+  public async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    const { email, token, password } = resetPasswordDto;
+    const user = await this.userService.getByEmailOrThrow(email);
+    await this.resetPasswordTokenService.verifyAndDelete(user.id, token);
+
+    const passwordHash = await this.hashService.hash(password);
+    await this.userService.update(user.id, { passwordHash });
+  }
+
+  public async changePassword(changePasswordDto: ChangePasswordDto) {
+    const { email, password } = changePasswordDto;
+    const user = await this.userService.getByEmailOrThrow(email);
+    const passwordHash = await this.hashService.hash(password);
+    await this.userService.update(user.id, { passwordHash });
   }
 }
