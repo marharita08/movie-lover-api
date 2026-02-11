@@ -64,4 +64,8 @@ export class SessionService {
     const newSession = this.sessionRepository.create(session);
     await this.sessionRepository.save(newSession);
   }
+
+  async deleteAllSessions(userId: string): Promise<void> {
+    await this.sessionRepository.delete({ userId });
+  }
 }

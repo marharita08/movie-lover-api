@@ -13,16 +13,16 @@ import { ResetPasswordTokenService } from 'src/modules/reset-password-token/rese
 import { UserDto, UserService } from '../../user';
 import { getOtpEmailMessage, OtpPurposeToEmailSubject } from '../const';
 import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
   LoginDto,
+  ResetPasswordDto,
   SendOtpDto,
   SignUpDto,
   UpdateUserDto,
   VerifyEmailDto,
+  VerifyResetPasswordOtpDto,
 } from '../dto';
-import { ChangePasswordDto } from '../dto/change-password.dto';
-import { ForgotPasswordDto } from '../dto/forgot-password.dto';
-import { ResetPasswordDto } from '../dto/reset-password.dto';
-import { VerifyResetPasswordOtpDto } from '../dto/verify-reset-password-otp.dto';
 import { SessionService } from './session.service';
 import { TokenService } from './token.service';
 
@@ -198,6 +198,7 @@ export class AuthService {
 
     const passwordHash = await this.hashService.hash(password);
     await this.userService.update(user.id, { passwordHash });
+    await this.sessionService.deleteAllSessions(user.id);
   }
 
   public async changePassword(changePasswordDto: ChangePasswordDto) {

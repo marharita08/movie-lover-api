@@ -15,12 +15,18 @@ import type { CookieOptions, Request, Response } from 'express';
 
 import { GetUser } from './decorators/get-user.decorator';
 import { Public } from './decorators/public.decorator';
-import { SendOtpDto, SignUpDto } from './dto';
-import { LoginDto } from './dto/login.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { VerifyEmailDto } from './dto/verify-email.dto';
+import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  LoginDto,
+  ResetPasswordDto,
+  SendOtpDto,
+  SignUpDto,
+  UpdateUserDto,
+  VerifyEmailDto,
+  VerifyResetPasswordOtpDto,
+} from './dto';
 import { AuthService } from './services';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 const COOKIE_EXPIRE_TIME = 15 * 24 * 60 * 60 * 1000; // 15 days
 const COOKIE_OPTIONS: CookieOptions = {
@@ -32,7 +38,7 @@ const COOKIE_OPTIONS: CookieOptions = {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('signup')
   @Public()
@@ -127,5 +133,25 @@ export class AuthController {
   @Public()
   public async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Post('verify-reset-password')
+  @Public()
+  public async verifyResetPasswordOtp(
+    @Body() verifyResetPasswordOtpDto: VerifyResetPasswordOtpDto,
+  ) {
+    return this.authService.verifyResetPasswordOtp(verifyResetPasswordOtpDto);
+  }
+
+  @Public()
+  @Post('reset-password')
+  public async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  @Post('change-password')
+  @Public()
+  public async changePassword(@Body() changePasswordDto: ChangePasswordDto) {
+    return this.authService.changePassword(changePasswordDto);
   }
 }

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Otp, Session, User } from 'src/entities';
+import { Otp, ResetPasswordToken, Session, User } from 'src/entities';
 
 @Module({
   imports: [
@@ -15,7 +15,7 @@ import { Otp, Session, User } from 'src/entities';
         username: config.get<string>('DB_USERNAME'),
         password: config.get<string>('DB_PASSWORD'),
         database: config.get<string>('DB_NAME'),
-        entities: [User, Otp, Session],
+        entities: [User, Otp, ResetPasswordToken, Session],
         synchronize: true,
       }),
     }),
