@@ -201,8 +201,11 @@ export class AuthService {
     await this.sessionService.deleteAllSessions(user.id);
   }
 
-  public async changePassword(changePasswordDto: ChangePasswordDto) {
-    const { email, password } = changePasswordDto;
+  public async changePassword(
+    email: string,
+    changePasswordDto: ChangePasswordDto,
+  ) {
+    const { password } = changePasswordDto;
     const user = await this.userService.getByEmailOrThrow(email);
     const passwordHash = await this.hashService.hash(password);
     await this.userService.update(user.id, { passwordHash });

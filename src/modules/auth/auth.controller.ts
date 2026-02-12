@@ -38,7 +38,7 @@ const COOKIE_OPTIONS: CookieOptions = {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @Post('signup')
   @Public()
@@ -151,7 +151,10 @@ export class AuthController {
 
   @Post('change-password')
   @Public()
-  public async changePassword(@Body() changePasswordDto: ChangePasswordDto) {
-    return this.authService.changePassword(changePasswordDto);
+  public async changePassword(
+    @Body() changePasswordDto: ChangePasswordDto,
+    @GetUser('email') email: string,
+  ) {
+    return this.authService.changePassword(email, changePasswordDto);
   }
 }
