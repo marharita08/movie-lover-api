@@ -1,14 +1,14 @@
 interface MovieDto {
   adult: boolean;
-  backdropPath: string;
+  backdropPath: string | null;
   genreIds: number[];
   id: number;
   originalLanguage: string;
   originalTitle: string;
   overview: string;
   popularity: number;
-  posterPath: string;
-  releaseDate: string;
+  posterPath: string | null;
+  releaseDate: string | null;
   title: string;
   video: boolean;
   voteAverage: number;

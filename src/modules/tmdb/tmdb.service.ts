@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { appendQueryParams } from 'src/utils';
 
@@ -48,9 +48,15 @@ export class TmdbService {
     const url = new URL(`${this.baseUrl}/movie/${id}`);
     const response = await fetch(url, this.options);
     if (!response.ok) {
-      throw new Error('Failed to fetch movie details');
+      const errorBody = await response.text();
+      throw new Error(
+        `Failed to fetch movies: ${response.status} - ${errorBody}`,
+      );
     }
     const data = (await response.json()) as TmdbMovieDetailsResponseDto;
+    if (!data) {
+      throw new NotFoundException('Movie not found');
+    }
     return this.tmdbResponseMapperService.mapMovieDetails(data);
   }
 }

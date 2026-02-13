@@ -15,7 +15,14 @@ export class TmdbResponseMapperService {
     return {
       adult: tmdbMovieDetails.adult,
       backdropPath: tmdbMovieDetails.backdrop_path,
-      belongsToCollection: tmdbMovieDetails.belongs_to_collection,
+      belongsToCollection: tmdbMovieDetails.belongs_to_collection
+        ? {
+            id: tmdbMovieDetails.belongs_to_collection.id,
+            name: tmdbMovieDetails.belongs_to_collection.name,
+            posterPath: tmdbMovieDetails.belongs_to_collection.poster_path,
+            backdropPath: tmdbMovieDetails.belongs_to_collection.backdrop_path,
+          }
+        : null,
       budget: tmdbMovieDetails.budget,
       genres: tmdbMovieDetails.genres,
       homepage: tmdbMovieDetails.homepage,
@@ -26,7 +33,7 @@ export class TmdbResponseMapperService {
       overview: tmdbMovieDetails.overview,
       popularity: tmdbMovieDetails.popularity,
       posterPath: tmdbMovieDetails.poster_path,
-      productionCompanies: tmdbMovieDetails.production_companies.map(
+      productionCompanies: (tmdbMovieDetails.production_companies || []).map(
         (company) => ({
           id: company.id,
           logoPath: company.logo_path,
@@ -34,7 +41,7 @@ export class TmdbResponseMapperService {
           originCountry: company.origin_country,
         }),
       ),
-      productionCountries: tmdbMovieDetails.production_countries.map(
+      productionCountries: (tmdbMovieDetails.production_countries || []).map(
         (country) => ({
           iso31661: country.iso_3166_1,
           name: country.name,
@@ -43,11 +50,13 @@ export class TmdbResponseMapperService {
       releaseDate: tmdbMovieDetails.release_date,
       revenue: tmdbMovieDetails.revenue,
       runtime: tmdbMovieDetails.runtime,
-      spokenLanguages: tmdbMovieDetails.spoken_languages.map((language) => ({
-        iso6391: language.iso_639_1,
-        name: language.name,
-        englishName: language.english_name,
-      })),
+      spokenLanguages: (tmdbMovieDetails.spoken_languages || []).map(
+        (language) => ({
+          iso6391: language.iso_639_1,
+          name: language.name,
+          englishName: language.english_name,
+        }),
+      ),
       status: tmdbMovieDetails.status,
       tagline: tmdbMovieDetails.tagline,
       title: tmdbMovieDetails.title,

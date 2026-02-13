@@ -1,4 +1,10 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  Query,
+} from '@nestjs/common';
 
 import {
   DiscoverMoviesQueryDto,
@@ -20,8 +26,12 @@ export class TmdbController {
 
   @Get('movie/:id')
   async getMovieDetails(
-    @Param('id') id: number,
+    @Param('id') id: string,
   ): Promise<MovieDetailsResponseDto> {
-    return this.tmdbService.movieDetails(id);
+    const idNumber = Number(id);
+    if (Number.isNaN(idNumber)) {
+      throw new BadRequestException('Invalid movie ID');
+    }
+    return this.tmdbService.movieDetails(idNumber);
   }
 }
