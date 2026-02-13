@@ -48,15 +48,15 @@ export class TmdbService {
     const url = new URL(`${this.baseUrl}/movie/${id}`);
     const response = await fetch(url, this.options);
     if (!response.ok) {
+      if (response.status === 404) {
+        throw new NotFoundException((await response.json()).status_message);
+      }
       const errorBody = await response.text();
       throw new Error(
         `Failed to fetch movies: ${response.status} - ${errorBody}`,
       );
     }
     const data = (await response.json()) as TmdbMovieDetailsResponseDto;
-    if (!data) {
-      throw new NotFoundException('Movie not found');
-    }
     return this.tmdbResponseMapperService.mapMovieDetails(data);
   }
 }
