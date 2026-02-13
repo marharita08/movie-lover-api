@@ -116,10 +116,10 @@ export class AuthController {
     return this.authService.sendOtp(sendOtpDto);
   }
 
-  @Patch('user/:id')
+  @Patch('user')
   public async updateUser(
     @Body() updateUserDto: UpdateUserDto,
-    @Param('id') id: string,
+    @GetUser('id') id: string,
   ) {
     return this.authService.updateUser(id, updateUserDto);
   }
