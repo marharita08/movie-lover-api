@@ -4,6 +4,9 @@ import { APP_GUARD } from '@nestjs/core';
 
 import { AuthModule } from './modules/auth/auth.module';
 import { AccessTokenGuard } from './modules/auth/guards/access-token.guard';
+import { FileModule } from './modules/file/file.module';
+import { ListModule } from './modules/list/list.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { TmdbModule } from './modules/tmdb/tmdb.module';
 import { TypeormModule } from './modules/typeorm/typeorm.module';
 
@@ -12,6 +15,9 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
     AuthModule,
     TypeormModule,
     TmdbModule,
+    FileModule,
+    ListModule,
+    StorageModule,
     ConfigModule.forRoot({ isGlobal: true }),
   ],
   providers: [
