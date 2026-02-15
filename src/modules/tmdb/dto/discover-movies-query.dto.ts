@@ -2,8 +2,8 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsPositive, IsString } from 'class-validator';
 
 export class DiscoverMoviesQueryDto {
-  @IsInt()
   @IsOptional()
+  @IsInt()
   @IsPositive()
   year: number;
 
@@ -13,12 +13,12 @@ export class DiscoverMoviesQueryDto {
   @IsInt()
   page: number;
 
-  @IsInt()
   @IsOptional()
+  @IsInt()
   @IsPositive()
   primaryReleaseYear: number;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   sortBy: string;
 }
