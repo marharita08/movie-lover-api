@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsPositive, IsString, Max } from 'class-validator';
+import { MAX_LIMIT } from 'src/const/max-limit';
 
 export class GetListsQueryDto {
   @IsOptional()
@@ -9,12 +10,13 @@ export class GetListsQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(1)
+  @IsPositive()
   page?: number = 1;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(1)
+  @IsPositive()
+  @Max(MAX_LIMIT)
   limit?: number = 10;
 }
