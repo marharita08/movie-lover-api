@@ -3,15 +3,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/entities';
 import { Repository } from 'typeorm';
 
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UserDto } from './dto/user.dto';
+import { FileService } from '../file/file.service';
+import { CreateUserDto, UpdateUserDto, UserDto } from './dto';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly fileService: FileService,
   ) {}
 
   async getById(id: string): Promise<UserDto> {
@@ -60,6 +60,7 @@ export class UserService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+    await this.fileService.deleteByUserId(id);
     await this.userRepository.remove(user);
   }
 }

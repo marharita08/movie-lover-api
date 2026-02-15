@@ -1,22 +1,24 @@
-import { IsNumber, IsOptional, IsPositive, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsPositive, IsString } from 'class-validator';
 
 export class DiscoverMoviesQueryDto {
-  @IsNumber()
   @IsOptional()
+  @IsInt()
   @IsPositive()
   year: number;
 
-  @IsNumber()
   @IsOptional()
   @IsPositive()
+  @Type(() => Number)
+  @IsInt()
   page: number;
 
-  @IsNumber()
   @IsOptional()
+  @IsInt()
   @IsPositive()
   primaryReleaseYear: number;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   sortBy: string;
 }
