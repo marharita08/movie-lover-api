@@ -1,4 +1,4 @@
-import { Column, Entity, Index, OneToMany } from 'typeorm';
+import { Column, Entity, OneToMany } from 'typeorm';
 
 import { BaseEntity } from './base.entity';
 import { MediaPerson } from './media-person.entity';
@@ -11,7 +11,6 @@ export enum PersonRole {
 @Entity()
 export class Person extends BaseEntity {
   @Column({ unique: true })
-  @Index()
   tmdbId: number;
 
   @Column({ type: 'varchar', nullable: true })

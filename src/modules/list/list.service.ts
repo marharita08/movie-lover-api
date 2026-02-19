@@ -56,10 +56,7 @@ export class ListService {
     });
 
     const savedList = await this.listRepository.save(list);
-    await this.processList(savedList.id).catch((error) => {
-      this.logger.error(`Failed to process list ${savedList.id}:`, error);
-    });
-
+    await this.processList(savedList.id);
     return savedList;
   }
 
@@ -314,9 +311,9 @@ export class ListService {
     }
   }
 
-  async getGenreAnalytics(listId: string) {
+  async getGenreAnalytics(listId: string, userId: string) {
     const list = await this.listRepository.findOne({
-      where: { id: listId },
+      where: { id: listId, userId },
     });
 
     if (!list) {
@@ -355,11 +352,12 @@ export class ListService {
 
   async getPersonsAnalytics(
     listId: string,
+    userId: string,
     role: PersonRole,
     limit: number = 10,
   ) {
     const list = await this.listRepository.findOne({
-      where: { id: listId },
+      where: { id: listId, userId },
     });
 
     if (!list) {

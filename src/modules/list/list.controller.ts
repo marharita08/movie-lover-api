@@ -48,12 +48,16 @@ export class ListController {
   }
 
   @Get(':id/genre/stats')
-  getGenreStats(@Param('id') id: string) {
-    return this.listService.getGenreAnalytics(id);
+  getGenreStats(@Param('id') id: string, @GetUser('id') userId: string) {
+    return this.listService.getGenreAnalytics(id, userId);
   }
 
   @Get(':id/person/stats')
-  getPersonStats(@Param('id') id: string, @Query('role') role: PersonRole) {
-    return this.listService.getPersonsAnalytics(id, role);
+  getPersonStats(
+    @Param('id') id: string,
+    @Query('role') role: PersonRole,
+    @GetUser('id') userId: string,
+  ) {
+    return this.listService.getPersonsAnalytics(id, userId, role);
   }
 }

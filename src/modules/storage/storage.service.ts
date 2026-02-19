@@ -1,11 +1,16 @@
 import { Storage } from '@google-cloud/storage';
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class StorageService {
   private storage: Storage;
   private bucketName: string;
+  private readonly logger = new Logger(StorageService.name);
 
   constructor(private readonly configService: ConfigService) {
     const projectId = this.configService.get<string>('GCP_PROJECT_ID');
@@ -46,14 +51,24 @@ export class StorageService {
   }
 
   async deleteFile(fileName: string): Promise<void> {
-    await this.storage.bucket(this.bucketName).file(fileName).delete();
+    try {
+      await this.storage.bucket(this.bucketName).file(fileName).delete();
+    } catch (err) {
+      this.logger.error(`Failed to delete file ${fileName}:`, err);
+      throw new InternalServerErrorException('Failed to delete file');
+    }
   }
 
   async downloadFile(fileName: string): Promise<string> {
-    const bucket = this.storage.bucket(this.bucketName);
-    const file = bucket.file(fileName);
+    try {
+      const bucket = this.storage.bucket(this.bucketName);
+      const file = bucket.file(fileName);
 
-    const [content] = await file.download();
-    return content.toString('utf-8');
+      const [content] = await file.download();
+      return content.toString('utf-8');
+    } catch (err) {
+      this.logger.error(`Failed to download file ${fileName}:`, err);
+      throw new InternalServerErrorException('Failed to download file');
+    }
   }
 }

@@ -4,7 +4,4 @@ import { TvShowDetailsResponseDto } from './tv-show-details-response.dto';
 export interface FindResponseDto {
   movieResults: MovieDetailsResponseDto[];
   tvResults: TvShowDetailsResponseDto[];
-  personResults: any[];
-  tvEpisodeResults: any[];
-  tvSeasonResults: any[];
 }

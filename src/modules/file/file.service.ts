@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { File } from 'src/entities/file.entity';
 import { Repository } from 'typeorm';
@@ -7,6 +7,8 @@ import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class FileService {
+  private readonly logger = new Logger(FileService.name);
+
   constructor(
     @InjectRepository(File)
     private readonly fileRepository: Repository<File>,
@@ -52,11 +54,22 @@ export class FileService {
   async deleteByUserId(userId: string): Promise<void> {
     const files = await this.fileRepository.find({ where: { userId } });
 
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       files.map((file) => this.storageService.deleteFile(file.key)),
     );
 
-    await this.fileRepository.remove(files);
+    const filesToDelete = files.filter((_, index) => {
+      const result = results[index];
+      if (result.status === 'rejected') {
+        this.logger.error(
+          `Failed to delete file "${files[index].key}" from storage: ${result.reason}`,
+        );
+        return false;
+      }
+      return true;
+    });
+
+    await this.fileRepository.remove(filesToDelete);
   }
 
   async download(fileId: string): Promise<string> {

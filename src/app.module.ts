@@ -13,6 +13,7 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     AuthModule,
     TypeormModule,
     TmdbModule,
@@ -20,7 +21,6 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
     ListModule,
     StorageModule,
     CsvParserModule,
-    ConfigModule.forRoot({ isGlobal: true }),
   ],
   providers: [
     {
