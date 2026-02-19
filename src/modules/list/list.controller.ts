@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { PersonRole } from 'src/entities';
 
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { CreateListDto, GetListsQueryDto, UpdateListDto } from './dto';
@@ -44,5 +45,15 @@ export class ListController {
   @Delete(':id')
   delete(@Param('id') id: string, @GetUser('id') userId: string) {
     return this.listService.delete(id, userId);
+  }
+
+  @Get(':id/genre/stats')
+  getGenreStats(@Param('id') id: string) {
+    return this.listService.getGenreAnalytics(id);
+  }
+
+  @Get(':id/person/stats')
+  getPersonStats(@Param('id') id: string, @Query('role') role: PersonRole) {
+    return this.listService.getPersonsAnalytics(id, role);
   }
 }

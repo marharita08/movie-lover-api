@@ -48,4 +48,12 @@ export class StorageService {
   async deleteFile(fileName: string): Promise<void> {
     await this.storage.bucket(this.bucketName).file(fileName).delete();
   }
+
+  async downloadFile(fileName: string): Promise<string> {
+    const bucket = this.storage.bucket(this.bucketName);
+    const file = bucket.file(fileName);
+
+    const [content] = await file.download();
+    return content.toString('utf-8');
+  }
 }

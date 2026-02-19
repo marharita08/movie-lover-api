@@ -58,4 +58,9 @@ export class FileService {
 
     await this.fileRepository.remove(files);
   }
+
+  async download(fileId: string): Promise<string> {
+    const file = await this.findOne(fileId);
+    return this.storageService.downloadFile(file.key);
+  }
 }
