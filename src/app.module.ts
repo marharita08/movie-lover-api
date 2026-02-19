@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 
 import { AuthModule } from './modules/auth/auth.module';
 import { AccessTokenGuard } from './modules/auth/guards/access-token.guard';
+import { CsvParserModule } from './modules/csv-parser/csv-parser.module';
 import { FileModule } from './modules/file/file.module';
 import { ListModule } from './modules/list/list.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -12,13 +13,14 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     AuthModule,
     TypeormModule,
     TmdbModule,
     FileModule,
     ListModule,
     StorageModule,
-    ConfigModule.forRoot({ isGlobal: true }),
+    CsvParserModule,
   ],
   providers: [
     {

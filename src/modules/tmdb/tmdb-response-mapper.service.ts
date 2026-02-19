@@ -1,10 +1,17 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  CreditsResponseDto,
   MovieDetailsResponseDto,
   MoviesResponseDto,
+  PersonResponseDto,
+  TmdbAggregateCreditsResponseDto,
+  TmdbCreditsResponseDto,
   TmdbMovieDetailsResponseDto,
   TMDBMoviesResponseDto,
+  TmdbPersonResponseDto,
+  TmdbTvShowDetailsResponseDto,
+  TvShowDetailsResponseDto,
 } from './dto';
 
 @Injectable()
@@ -87,6 +94,132 @@ export class TmdbResponseMapperService {
       })),
       totalPages: data.total_pages,
       totalResults: data.total_results,
+    };
+  }
+
+  mapTvShowDetails(
+    tmdbTvShowDetails: TmdbTvShowDetailsResponseDto,
+  ): TvShowDetailsResponseDto {
+    return {
+      adult: tmdbTvShowDetails.adult,
+      backdropPath: tmdbTvShowDetails.backdrop_path,
+      createdBy: (tmdbTvShowDetails.created_by || []).map((person) => ({
+        id: person.id,
+        name: person.name,
+        profilePath: person.profile_path,
+      })),
+      episodeRunTime: tmdbTvShowDetails.episode_run_time,
+      firstAirDate: tmdbTvShowDetails.first_air_date,
+      genres: tmdbTvShowDetails.genres,
+      homepage: tmdbTvShowDetails.homepage,
+      id: tmdbTvShowDetails.id,
+      inProduction: tmdbTvShowDetails.in_production,
+      languages: tmdbTvShowDetails.languages,
+      lastAirDate: tmdbTvShowDetails.last_air_date,
+      name: tmdbTvShowDetails.name,
+      numberOfEpisodes: tmdbTvShowDetails.number_of_episodes,
+      numberOfSeasons: tmdbTvShowDetails.number_of_seasons,
+      originCountry: tmdbTvShowDetails.origin_country,
+      originalLanguage: tmdbTvShowDetails.original_language,
+      originalName: tmdbTvShowDetails.original_name,
+      overview: tmdbTvShowDetails.overview,
+      popularity: tmdbTvShowDetails.popularity,
+      posterPath: tmdbTvShowDetails.poster_path,
+      productionCompanies: (tmdbTvShowDetails.production_companies || []).map(
+        (company) => ({
+          id: company.id,
+          logoPath: company.logo_path,
+          name: company.name,
+          originCountry: company.origin_country,
+        }),
+      ),
+      productionCountries: (tmdbTvShowDetails.production_countries || []).map(
+        (country) => ({
+          iso31661: country.iso_3166_1,
+          name: country.name,
+        }),
+      ),
+      seasons: (tmdbTvShowDetails.seasons || []).map((season) => ({
+        airDate: season.air_date,
+        episodeCount: season.episode_count,
+        id: season.id,
+        name: season.name,
+        overview: season.overview,
+        posterPath: season.poster_path,
+        seasonNumber: season.season_number,
+        voteAverage: season.vote_average,
+      })),
+      spokenLanguages: (tmdbTvShowDetails.spoken_languages || []).map(
+        (language) => ({
+          englishName: language.english_name,
+          iso6391: language.iso_639_1,
+          name: language.name,
+        }),
+      ),
+      status: tmdbTvShowDetails.status,
+      tagline: tmdbTvShowDetails.tagline,
+      type: tmdbTvShowDetails.type,
+      voteAverage: tmdbTvShowDetails.vote_average,
+      voteCount: tmdbTvShowDetails.vote_count,
+    };
+  }
+
+  mapCredits(
+    data: TmdbCreditsResponseDto | TmdbAggregateCreditsResponseDto,
+  ): CreditsResponseDto {
+    return {
+      id: data.id,
+      cast: (data.cast || []).map((castMember) => {
+        let character = '';
+        if ('character' in castMember) {
+          character = castMember.character;
+        } else if ('roles' in castMember && castMember.roles.length > 0) {
+          character = castMember.roles[0].character;
+        }
+
+        return {
+          id: castMember.id,
+          name: castMember.name,
+          character,
+          profilePath: castMember.profile_path,
+          order: castMember.order,
+        };
+      }),
+      crew: (data.crew || []).map((crewMember) => {
+        let job = '';
+        if ('job' in crewMember) {
+          job = crewMember.job;
+        } else if ('jobs' in crewMember && crewMember.jobs.length > 0) {
+          job = crewMember.jobs[0].job;
+        }
+
+        return {
+          id: crewMember.id,
+          name: crewMember.name,
+          job,
+          department: crewMember.department,
+          profilePath: crewMember.profile_path,
+        };
+      }),
+    };
+  }
+
+  mapPerson(data: TmdbPersonResponseDto): PersonResponseDto {
+    return {
+      adult: data.adult,
+      alsoKnownAs: data.also_known_as,
+      biography: data.biography,
+      birthday: data.birthday,
+      deathday: data.deathday,
+      gender: data.gender,
+      homepage: data.homepage,
+      id: data.id,
+      imdbId: data.imdb_id,
+      knownForDepartment: data.known_for_department,
+      name: data.name,
+      placeOfBirth: data.place_of_birth,
+      popularity: data.popularity,
+      profilePath: data.profile_path,
     };
   }
 }

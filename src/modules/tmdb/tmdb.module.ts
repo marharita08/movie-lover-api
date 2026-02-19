@@ -7,5 +7,6 @@ import { TmdbResponseMapperService } from './tmdb-response-mapper.service';
 @Module({
   controllers: [TmdbController],
   providers: [TmdbService, TmdbResponseMapperService],
+  exports: [TmdbService],
 })
 export class TmdbModule {}

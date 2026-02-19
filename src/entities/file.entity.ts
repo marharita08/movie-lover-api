@@ -21,13 +21,13 @@ export class File extends BaseEntity {
   @Column()
   size: number;
 
-  @Column()
-  userId: string;
+  @Column({ nullable: true })
+  userId: string | null;
 
-  @ManyToOne(() => User, (user) => user.files, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (user) => user.files, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @OneToOne(() => List, (list) => list.file, { onDelete: 'CASCADE' })
+  @OneToOne(() => List, (list) => list.file, { onDelete: 'SET NULL' })
   list: List;
 }
