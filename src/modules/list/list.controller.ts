@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -29,13 +30,16 @@ export class ListController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @GetUser('id') userId: string) {
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ) {
     return this.listService.findOne(id, userId);
   }
 
   @Patch(':id')
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateListDto,
     @GetUser('id') userId: string,
   ) {
@@ -43,18 +47,24 @@ export class ListController {
   }
 
   @Delete(':id')
-  delete(@Param('id') id: string, @GetUser('id') userId: string) {
+  delete(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ) {
     return this.listService.delete(id, userId);
   }
 
   @Get(':id/genre/stats')
-  getGenreStats(@Param('id') id: string, @GetUser('id') userId: string) {
+  getGenreStats(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ) {
     return this.listService.getGenreAnalytics(id, userId);
   }
 
   @Get(':id/person/stats')
   getPersonStats(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query('role') role: PersonRole,
     @GetUser('id') userId: string,
   ) {

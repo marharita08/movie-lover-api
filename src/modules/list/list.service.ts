@@ -97,7 +97,7 @@ export class ListService {
     });
 
     if (!list) {
-      throw new NotFoundException('List not found');
+      throw new NotFoundException(`List with ID ${id} not found`);
     }
 
     return list;
@@ -312,13 +312,7 @@ export class ListService {
   }
 
   async getGenreAnalytics(listId: string, userId: string) {
-    const list = await this.listRepository.findOne({
-      where: { id: listId, userId },
-    });
-
-    if (!list) {
-      throw new NotFoundException(`List with ID ${listId} not found`);
-    }
+    const list = await this.findOne(listId, userId);
 
     if (list.status !== ListStatus.COMPLETED) {
       return {
@@ -356,13 +350,7 @@ export class ListService {
     role: PersonRole,
     limit: number = 10,
   ) {
-    const list = await this.listRepository.findOne({
-      where: { id: listId, userId },
-    });
-
-    if (!list) {
-      throw new NotFoundException(`List with ID ${listId} not found`);
-    }
+    const list = await this.findOne(listId, userId);
 
     if (list.status !== ListStatus.COMPLETED) {
       return {
