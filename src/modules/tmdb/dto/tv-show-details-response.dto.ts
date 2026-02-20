@@ -56,4 +56,5 @@ export interface TvShowDetailsResponseDto {
   type: string;
   voteAverage: number;
   voteCount: number;
+  imdbId: string | null;
 }

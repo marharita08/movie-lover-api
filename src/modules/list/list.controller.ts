@@ -9,10 +9,15 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { PersonRole } from 'src/entities';
 
 import { GetUser } from '../auth/decorators/get-user.decorator';
-import { CreateListDto, GetListsQueryDto, UpdateListDto } from './dto';
+import {
+  CreateListDto,
+  GetListsQueryDto,
+  GetMediaItemsQueryDto,
+  UpdateListDto,
+} from './dto';
+import { GetPersonStatsQuery } from './dto/get-person-stats-query.dto';
 import { ListService } from './list.service';
 
 @Controller('list')
@@ -65,9 +70,18 @@ export class ListController {
   @Get(':id/person/stats')
   getPersonStats(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('role') role: PersonRole,
+    @Query() query: GetPersonStatsQuery,
     @GetUser('id') userId: string,
   ) {
-    return this.listService.getPersonsAnalytics(id, userId, role);
+    return this.listService.getPersonsAnalytics(id, userId, query);
+  }
+
+  @Get(':id/media')
+  getMediaItems(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: GetMediaItemsQueryDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.listService.getMediaItems(id, userId, query);
   }
 }

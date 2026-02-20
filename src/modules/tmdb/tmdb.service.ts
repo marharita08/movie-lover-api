@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MediaType } from 'src/entities';
 import { appendQueryParams } from 'src/utils';
@@ -44,30 +49,47 @@ export class TmdbService {
   }
 
   async discoverMovies(query: DiscoverMoviesQueryDto) {
-    const url = new URL(`${this.baseUrl}/discover/movie`);
-    appendQueryParams(url, query);
-    const response = await fetch(url, this.options);
-    if (!response.ok) {
-      throw new Error('Failed to fetch movies');
+    try {
+      const url = new URL(`${this.baseUrl}/discover/movie`);
+      appendQueryParams(url, query);
+      const response = await fetch(url, this.options);
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(
+          `Failed to fetch movies: ${response.status} - ${errorBody}`,
+        );
+      }
+      const data = (await response.json()) as TMDBMoviesResponseDto;
+      return this.tmdbResponseMapperService.mapMoviesResponse(data);
+    } catch (error) {
+      this.logger.error(`Error fetching movies:`, error);
+      throw new InternalServerErrorException(
+        'message' in error ? error.message : 'Failed to fetch movies',
+      );
     }
-    const data = (await response.json()) as TMDBMoviesResponseDto;
-    return this.tmdbResponseMapperService.mapMoviesResponse(data);
   }
 
   async movieDetails(id: number) {
-    const url = new URL(`${this.baseUrl}/movie/${id}`);
-    const response = await fetch(url, this.options);
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new NotFoundException((await response.json()).status_message);
+    try {
+      const url = new URL(`${this.baseUrl}/movie/${id}`);
+      const response = await fetch(url, this.options);
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new NotFoundException((await response.json()).status_message);
+        }
+        const errorBody = await response.text();
+        throw new Error(
+          `Failed to fetch movie details: ${response.status} - ${errorBody}`,
+        );
       }
-      const errorBody = await response.text();
-      throw new Error(
-        `Failed to fetch movies: ${response.status} - ${errorBody}`,
+      const data = (await response.json()) as TmdbMovieDetailsResponseDto;
+      return this.tmdbResponseMapperService.mapMovieDetails(data);
+    } catch (error) {
+      this.logger.error(`Error fetching movie details ${id}:`, error);
+      throw new InternalServerErrorException(
+        'message' in error ? error.message : 'Failed to fetch movie details',
       );
     }
-    const data = (await response.json()) as TmdbMovieDetailsResponseDto;
-    return this.tmdbResponseMapperService.mapMovieDetails(data);
   }
 
   async findMediaByImdbId(imdbId: string): Promise<{
@@ -110,16 +132,21 @@ export class TmdbService {
     }
   }
 
-  async getTVShowDetails(
-    tvShowId: number,
-  ): Promise<TvShowDetailsResponseDto | null> {
+  async getTVShowDetails(tvShowId: number): Promise<TvShowDetailsResponseDto> {
     try {
-      const url = new URL(`${this.baseUrl}/tv/${tvShowId}`);
+      const url = new URL(
+        `${this.baseUrl}/tv/${tvShowId}?append_to_response=external_ids`,
+      );
       const response = await fetch(url, this.options);
 
       if (!response.ok) {
-        this.logger.warn(`Failed to get TV show details for ${tvShowId}`);
-        return null;
+        if (response.status === 404) {
+          throw new NotFoundException((await response.json()).status_message);
+        }
+        const errorBody = await response.text();
+        throw new Error(
+          `Failed to fetch tv show details: ${response.status} - ${errorBody}`,
+        );
       }
 
       const tvShow = (await response.json()) as TmdbTvShowDetailsResponseDto;
@@ -127,7 +154,9 @@ export class TmdbService {
       return this.tmdbResponseMapperService.mapTvShowDetails(tvShow);
     } catch (error) {
       this.logger.error(`Error getting TV show details ${tvShowId}:`, error);
-      return null;
+      throw new InternalServerErrorException(
+        'message' in error ? error.message : 'Failed to fetch tv show details',
+      );
     }
   }
 

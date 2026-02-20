@@ -161,6 +161,7 @@ export class TmdbResponseMapperService {
       type: tmdbTvShowDetails.type,
       voteAverage: tmdbTvShowDetails.vote_average,
       voteCount: tmdbTvShowDetails.vote_count,
+      imdbId: tmdbTvShowDetails.external_ids?.imdb_id,
     };
   }
 

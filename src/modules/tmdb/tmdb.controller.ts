@@ -10,6 +10,7 @@ import {
   DiscoverMoviesQueryDto,
   MovieDetailsResponseDto,
   MoviesResponseDto,
+  TvShowDetailsResponseDto,
 } from './dto';
 import { TmdbService } from './tmdb.service';
 
@@ -33,5 +34,16 @@ export class TmdbController {
       throw new BadRequestException('Invalid movie ID');
     }
     return this.tmdbService.movieDetails(idNumber);
+  }
+
+  @Get('tv/:id')
+  async getTvShowDetails(
+    @Param('id') id: string,
+  ): Promise<TvShowDetailsResponseDto> {
+    const idNumber = Number(id);
+    if (Number.isNaN(idNumber)) {
+      throw new BadRequestException('Invalid TV show ID');
+    }
+    return this.tmdbService.getTVShowDetails(idNumber);
   }
 }
