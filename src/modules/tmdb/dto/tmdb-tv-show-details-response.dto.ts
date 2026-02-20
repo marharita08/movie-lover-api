@@ -79,4 +79,7 @@ export interface TmdbTvShowDetailsResponseDto {
   type: string;
   vote_average: number;
   vote_count: number;
+  external_ids: {
+    imdb_id: string | null;
+  };
 }

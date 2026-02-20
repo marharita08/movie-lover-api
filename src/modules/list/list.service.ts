@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -21,6 +22,8 @@ import { FileService } from '../file/file.service';
 import { TmdbService } from '../tmdb/tmdb.service';
 import { IMDBRow } from './dto';
 import { CreateListDto, GetListsQueryDto, UpdateListDto } from './dto';
+import { GetMediaItemsQueryDto } from './dto/get-media-items-query.dto';
+import { GetPersonStatsQuery } from './dto/get-person-stats-query.dto';
 
 @Injectable()
 export class ListService {
@@ -315,11 +318,11 @@ export class ListService {
     const list = await this.findOne(listId, userId);
 
     if (list.status !== ListStatus.COMPLETED) {
-      return {
-        listId,
-        status: list.status,
-        message: 'List is still processing',
-      };
+      throw new BadRequestException(
+        list.status === ListStatus.PROCESSING
+          ? 'List is still processing'
+          : 'Error occured while procesing your list',
+      );
     }
 
     const result: { genre: string; count: string }[] =
@@ -347,18 +350,32 @@ export class ListService {
   async getPersonsAnalytics(
     listId: string,
     userId: string,
-    role: PersonRole,
-    limit: number = 10,
+    query: GetPersonStatsQuery,
   ) {
     const list = await this.findOne(listId, userId);
 
     if (list.status !== ListStatus.COMPLETED) {
-      return {
-        listId,
-        status: list.status,
-        message: 'List is still processing',
-      };
+      throw new BadRequestException(
+        list.status === ListStatus.PROCESSING
+          ? 'List is still processing'
+          : 'Error occured while procesing your list',
+      );
     }
+
+    const { role, page = 1, limit = 10 } = query;
+
+    const totalCount: { count: string } | undefined =
+      await this.mediaPersonsRepository
+        .createQueryBuilder('mp')
+        .innerJoin('mp.person', 'person')
+        .innerJoin('mp.mediaItem', 'media')
+        .innerJoin('media.listMediaItems', 'lmi')
+        .select('COUNT(DISTINCT person.id)', 'count')
+        .where('lmi.listId = :listId', { listId })
+        .andWhere('mp.role = :role', { role })
+        .getRawOne();
+
+    const total = totalCount ? parseInt(totalCount.count) : 0;
 
     const result: {
       personId: string;
@@ -383,14 +400,15 @@ export class ListService {
       .groupBy('person.id')
       .addGroupBy('person.name')
       .addGroupBy('person.profilePath')
+      .addGroupBy('person.imdbId')
       .orderBy('COUNT(DISTINCT media.id)', 'DESC')
       .addOrderBy('person.name', 'ASC')
       .limit(limit)
+      .offset((page - 1) * limit)
       .getRawMany();
 
     return {
-      role,
-      persons: result.map((row) => ({
+      results: result.map((row) => ({
         id: row.personId,
         imdbId: row.imdbId,
         name: row.name,
@@ -398,6 +416,62 @@ export class ListService {
         itemCount: parseInt(row.itemCount),
         titles: Array.isArray(row.titles) ? row.titles.join(', ') : row.titles,
       })),
+      totalPages: Math.ceil(total / limit),
+      page,
+      totalResults: total,
+    };
+  }
+
+  async getMediaItems(
+    id: string,
+    userId: string,
+    query: GetMediaItemsQueryDto,
+  ) {
+    const list = await this.findOne(id, userId);
+
+    if (list.status !== ListStatus.COMPLETED) {
+      throw new BadRequestException(
+        list.status === ListStatus.PROCESSING
+          ? 'List is still processing'
+          : 'Error occured while procesing your list',
+      );
+    }
+
+    const { page = 1, limit = 10 } = query;
+
+    const totalCount: { count: string } | undefined =
+      await this.listMediaItemsRepository
+        .createQueryBuilder('lmi')
+        .innerJoin('lmi.mediaItem', 'media')
+        .select('COUNT(DISTINCT media.id)', 'count')
+        .where('lmi.listId = :listId', { listId: id })
+        .getRawOne();
+
+    const total = totalCount ? parseInt(totalCount.count) : 0;
+
+    const result: {
+      id: number;
+      title: string;
+      posterPath: string;
+      type: MediaType;
+    }[] = await this.listMediaItemsRepository
+      .createQueryBuilder('lmi')
+      .innerJoin('lmi.mediaItem', 'media')
+      .select('media.tmdbId', 'id')
+      .addSelect('media.title', 'title')
+      .addSelect('media.posterPath', 'posterPath')
+      .addSelect('media.type', 'type')
+      .where('lmi.listId = :listId', { listId: id })
+      .orderBy('lmi.position', 'ASC')
+      .limit(limit)
+      .offset((page - 1) * limit)
+      .getRawMany();
+
+    return {
+      results: result,
+      totalPages: Math.ceil(total / limit),
+      page,
+      totalResults: total,
     };
   }
 
