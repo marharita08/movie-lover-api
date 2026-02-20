@@ -320,8 +320,8 @@ export class ListService {
     if (list.status !== ListStatus.COMPLETED) {
       throw new BadRequestException(
         list.status === ListStatus.PROCESSING
-          ? 'List is still processing'
-          : 'Error occured while procesing your list',
+          ? 'List is still processing. Please try again later.'
+          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
       );
     }
 
@@ -357,8 +357,8 @@ export class ListService {
     if (list.status !== ListStatus.COMPLETED) {
       throw new BadRequestException(
         list.status === ListStatus.PROCESSING
-          ? 'List is still processing'
-          : 'Error occured while procesing your list',
+          ? 'List is still processing. Please try again later.'
+          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
       );
     }
 
@@ -432,8 +432,8 @@ export class ListService {
     if (list.status !== ListStatus.COMPLETED) {
       throw new BadRequestException(
         list.status === ListStatus.PROCESSING
-          ? 'List is still processing'
-          : 'Error occured while procesing your list',
+          ? 'List is still processing. Please try again later.'
+          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
       );
     }
 

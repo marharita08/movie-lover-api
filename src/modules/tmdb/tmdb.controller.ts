@@ -42,7 +42,7 @@ export class TmdbController {
   ): Promise<TvShowDetailsResponseDto> {
     const idNumber = Number(id);
     if (Number.isNaN(idNumber)) {
-      throw new BadRequestException('Invalid movie ID');
+      throw new BadRequestException('Invalid TV show ID');
     }
     return this.tmdbService.getTVShowDetails(idNumber);
   }
