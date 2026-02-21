@@ -1,14 +1,19 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { MediaItem, MediaPerson, Person } from 'src/entities';
-import { List } from 'src/entities/list.entity';
-import { ListMediaItem } from 'src/entities/list-media-item.entity';
 
-import { FileModule } from '../file/file.module';
+import {
+  List,
+  ListMediaItem,
+  MediaItem,
+  MediaPerson,
+  Person,
+} from 'src/entities';
+import { CsvParserModule } from 'src/modules/csv-parser/csv-parser.module';
+import { FileModule } from 'src/modules/file/file.module';
+import { TmdbModule } from 'src/modules/tmdb/tmdb.module';
+
 import { ListController } from './list.controller';
 import { ListService } from './list.service';
-import { CsvParserModule } from '../csv-parser/csv-parser.module';
-import { TmdbModule } from '../tmdb/tmdb.module';
 
 @Module({
   imports: [

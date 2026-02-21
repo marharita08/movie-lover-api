@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Session, User } from 'src/entities';
-import { UserService } from 'src/modules/user';
 import { Repository } from 'typeorm';
+
+import { Session, User } from 'src/entities';
+import { UserService } from 'src/modules/user/user.service';
 
 @Injectable()
 export class SessionService {

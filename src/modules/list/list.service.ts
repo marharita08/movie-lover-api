@@ -6,24 +6,31 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ILike, Repository } from 'typeorm';
+
 import {
+  List,
+  ListMediaItem,
+  ListStatus,
   MediaItem,
   MediaPerson,
   MediaType,
   Person,
   PersonRole,
 } from 'src/entities';
-import { List, ListStatus } from 'src/entities/list.entity';
-import { ListMediaItem } from 'src/entities/list-media-item.entity';
-import { ILike, Repository } from 'typeorm';
+import { CsvParserService } from 'src/modules/csv-parser/csv-parser.service';
+import { FileService } from 'src/modules/file/file.service';
+import { TmdbService } from 'src/modules/tmdb/tmdb.service';
 
-import { CsvParserService } from '../csv-parser/csv-parser.service';
-import { FileService } from '../file/file.service';
-import { TmdbService } from '../tmdb/tmdb.service';
-import { IMDBRow } from './dto';
-import { CreateListDto, GetListsQueryDto, UpdateListDto } from './dto';
-import { GetMediaItemsQueryDto } from './dto/get-media-items-query.dto';
-import { GetPersonStatsQuery } from './dto/get-person-stats-query.dto';
+import {
+  CreateListDto,
+  GetListsQueryDto,
+  GetMediaItemsQueryDto,
+  GetPersonStatsQuery,
+  GetRatingStatsQueryDto,
+  IMDBRow,
+  UpdateListDto,
+} from './dto';
 
 @Injectable()
 export class ListService {
@@ -198,12 +205,19 @@ export class ListService {
           mediaItem.tmdbId = tmdbData.data.id;
           mediaItem.posterPath = tmdbData.data.posterPath;
           mediaItem.status = tmdbData.data.status;
-          if (
-            mediaItem.type === MediaType.TV &&
-            'numberOfSeasons' in tmdbData.data
-          ) {
-            mediaItem.numberOfSeasons = tmdbData.data.numberOfSeasons;
-            mediaItem.numberOfEpisodes = tmdbData.data.numberOfEpisodes;
+          if (mediaItem.type === MediaType.TV) {
+            try {
+              const tvShowDetails = await this.tmdbService.getTVShowDetails(
+                tmdbData.data.id,
+              );
+              mediaItem.numberOfSeasons = tvShowDetails.numberOfSeasons;
+              mediaItem.numberOfEpisodes = tvShowDetails.numberOfEpisodes;
+            } catch (error) {
+              this.logger.error(
+                `Error getting TV show details for ${row.Const}:`,
+                error,
+              );
+            }
           }
 
           await this.mediaItemsRepository.save(mediaItem);
@@ -462,7 +476,7 @@ export class ListService {
       .addSelect('media.posterPath', 'posterPath')
       .addSelect('media.type', 'type')
       .where('lmi.listId = :listId', { listId: id })
-      .orderBy('lmi.position', 'ASC')
+      .orderBy('lmi.position', 'DESC')
       .limit(limit)
       .offset((page - 1) * limit)
       .getRawMany();
@@ -472,6 +486,215 @@ export class ListService {
       totalPages: Math.ceil(total / limit),
       page,
       totalResults: total,
+    };
+  }
+
+  async getMediaTypeStats(listId: string, userId: string) {
+    const list = await this.findOne(listId, userId);
+
+    if (list.status !== ListStatus.COMPLETED) {
+      throw new BadRequestException(
+        list.status === ListStatus.PROCESSING
+          ? 'List is still processing. Please try again later.'
+          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
+      );
+    }
+
+    const result: {
+      type: MediaType;
+      count: string;
+    }[] = await this.listMediaItemsRepository
+      .createQueryBuilder('lmi')
+      .innerJoin('lmi.mediaItem', 'media')
+      .select('media.type', 'type')
+      .addSelect('COUNT(*)', 'count')
+      .where('lmi.listId = :listId', { listId })
+      .groupBy('media.type')
+      .getRawMany();
+
+    const mediaTypeStats = result.reduce(
+      (acc, { type, count }) => {
+        acc[type] = parseInt(count);
+        return acc;
+      },
+      {} as Record<MediaType, number>,
+    );
+
+    return mediaTypeStats;
+  }
+
+  async getRatingStats(
+    listId: string,
+    userId: string,
+    query: GetRatingStatsQueryDto,
+  ) {
+    const list = await this.findOne(listId, userId);
+
+    if (list.status !== ListStatus.COMPLETED) {
+      throw new BadRequestException(
+        list.status === ListStatus.PROCESSING
+          ? 'List is still processing. Please try again later.'
+          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
+      );
+    }
+
+    const qb = this.listMediaItemsRepository
+      .createQueryBuilder('lmi')
+      .innerJoin('lmi.mediaItem', 'media')
+      .select('lmi.userRating', 'rating')
+      .addSelect('COUNT(*)', 'count')
+      .where('lmi.listId = :listId', { listId })
+      .andWhere('lmi.userRating IS NOT NULL')
+      .groupBy('rating')
+      .orderBy('count', 'DESC');
+
+    if (query.genre) {
+      qb.andWhere(':genre = ANY(media.genres)', { genre: query.genre });
+    }
+
+    if (query.year) {
+      qb.andWhere('media.year = :year', { year: query.year });
+    }
+
+    if (query.type) {
+      qb.andWhere('media.type = :type', { type: query.type });
+    }
+
+    const result: { rating: string; count: string }[] = await qb.getRawMany();
+    const ratingStats = Array.from({ length: 10 }, (_, i) => i + 1).reduce(
+      (acc, rating) => {
+        const found = result.find((r) => Number(r.rating) === rating);
+        acc[rating] = found ? parseInt(found.count) : 0;
+        return acc;
+      },
+      {} as Record<number, number>,
+    );
+
+    return ratingStats;
+  }
+
+  async getGenres(listId: string, userId: string) {
+    const list = await this.findOne(listId, userId);
+
+    if (list.status !== ListStatus.COMPLETED) {
+      throw new BadRequestException(
+        list.status === ListStatus.PROCESSING
+          ? 'List is still processing. Please try again later.'
+          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
+      );
+    }
+
+    const result: { genre: string }[] = await this.listMediaItemsRepository
+      .createQueryBuilder('lmi')
+      .innerJoin('lmi.mediaItem', 'media')
+      .select('DISTINCT unnest(media.genres)', 'genre')
+      .where('lmi.listId = :listId', { listId })
+      .orderBy('genre', 'ASC')
+      .getRawMany();
+
+    const genres = result.map((row) => row.genre);
+
+    return genres;
+  }
+
+  async getYears(listId: string, userId: string) {
+    const list = await this.findOne(listId, userId);
+
+    if (list.status !== ListStatus.COMPLETED) {
+      throw new BadRequestException(
+        list.status === ListStatus.PROCESSING
+          ? 'List is still processing. Please try again later.'
+          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
+      );
+    }
+
+    const result: { year: number }[] = await this.listMediaItemsRepository
+      .createQueryBuilder('lmi')
+      .innerJoin('lmi.mediaItem', 'media')
+      .select('DISTINCT media.year', 'year')
+      .where('lmi.listId = :listId', { listId })
+      .andWhere('media.year IS NOT NULL')
+      .orderBy('year', 'ASC')
+      .getRawMany();
+
+    const years = result.map((row) => row.year);
+
+    return years;
+  }
+
+  async getYearsAnalytics(listId: string, userId: string) {
+    const list = await this.findOne(listId, userId);
+
+    if (list.status !== ListStatus.COMPLETED) {
+      throw new BadRequestException(
+        list.status === ListStatus.PROCESSING
+          ? 'List is still processing. Please try again later.'
+          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
+      );
+    }
+
+    const result: { year: string; count: string }[] =
+      await this.listMediaItemsRepository
+        .createQueryBuilder('lmi')
+        .innerJoin('lmi.mediaItem', 'media')
+        .select('media.year', 'year')
+        .addSelect('COUNT(*)', 'count')
+        .where('lmi.listId = :listId', { listId })
+        .groupBy('year')
+        .orderBy('count', 'DESC')
+        .getRawMany();
+
+    const yearStats = result.reduce(
+      (acc, { year, count }) => {
+        acc[year] = parseInt(count);
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    return yearStats;
+  }
+
+  async getAmountStats(listId: string, userId: string) {
+    const list = await this.findOne(listId, userId);
+
+    if (list.status !== ListStatus.COMPLETED) {
+      throw new BadRequestException(
+        list.status === ListStatus.PROCESSING
+          ? 'List is still processing. Please try again later.'
+          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
+      );
+    }
+
+    const total = await this.listMediaItemsRepository
+      .createQueryBuilder('lmi')
+      .innerJoin('lmi.mediaItem', 'media')
+      .where('lmi.listId = :listId', { listId })
+      .getCount();
+
+    const totalMoviesRuntime = await this.listMediaItemsRepository
+      .createQueryBuilder('lmi')
+      .innerJoin('lmi.mediaItem', 'media')
+      .select('SUM(media.runtime)', 'totalRuntime')
+      .where('lmi.listId = :listId', { listId })
+      .andWhere('media.type = :type', { type: MediaType.MOVIE })
+      .getRawOne();
+
+    const totalTVShowsRuntime = await this.listMediaItemsRepository
+      .createQueryBuilder('lmi')
+      .innerJoin('lmi.mediaItem', 'media')
+      .select('SUM(media.runtime * media.numberOfEpisodes)', 'totalRuntime')
+      .where('lmi.listId = :listId', { listId })
+      .andWhere('media.type = :type', { type: MediaType.TV })
+      .getRawOne();
+
+    return {
+      total,
+      totalMoviesRuntime: totalMoviesRuntime.totalRuntime,
+      totalTVShowsRuntime: totalTVShowsRuntime.totalRuntime,
+      totalRuntime:
+        Number(totalMoviesRuntime.totalRuntime) +
+        Number(totalTVShowsRuntime.totalRuntime),
     };
   }
 

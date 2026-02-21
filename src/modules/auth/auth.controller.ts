@@ -13,8 +13,7 @@ import {
 } from '@nestjs/common';
 import type { CookieOptions, Request, Response } from 'express';
 
-import { GetUser } from './decorators/get-user.decorator';
-import { Public } from './decorators/public.decorator';
+import { GetUser, Public } from './decorators';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,

@@ -1,6 +1,7 @@
 export * from './base.entity';
 export * from './file.entity';
 export * from './list.entity';
+export * from './list-media-item.entity';
 export * from './media-item.entity';
 export * from './media-person.entity';
 export * from './otp.entity';

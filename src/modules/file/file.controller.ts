@@ -10,7 +10,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 
-import { GetUser } from '../auth/decorators/get-user.decorator';
+import { GetUser } from 'src/modules/auth/decorators';
+
 import { CsvFileValidator } from './csv-file.validator';
 import { FileService } from './file.service';
 

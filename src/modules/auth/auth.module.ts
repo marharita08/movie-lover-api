@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Otp, Session, User } from 'src/entities';
 
-import { EmailModule } from '../email/email.module';
-import { HashModule } from '../hash/hash.module';
-import { OtpModule } from '../otp/otp.module';
-import { ResetPasswordTokenModule } from '../reset-password-token/reset-password-token.module';
-import { UserModule } from '../user';
+import { Otp, Session, User } from 'src/entities';
+import { EmailModule } from 'src/modules/email/email.module';
+import { HashModule } from 'src/modules/hash/hash.module';
+import { OtpModule } from 'src/modules/otp/otp.module';
+import { ResetPasswordTokenModule } from 'src/modules/reset-password-token/reset-password-token.module';
+import { UserModule } from 'src/modules/user/user.module';
+
 import { AuthController } from './auth.controller';
 import { AuthService, SessionService, TokenService } from './services';
 import { AccessTokenStrategy } from './strategies/access-token.strategy';

@@ -1,10 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomBytes } from 'crypto';
-import { ResetPasswordToken } from 'src/entities';
 import { MoreThan, Repository } from 'typeorm';
 
-import { HashService } from '../hash/hash.service';
+import { ResetPasswordToken } from 'src/entities';
+import { HashService } from 'src/modules/hash/hash.service';
 
 @Injectable()
 export class ResetPasswordTokenService {

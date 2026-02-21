@@ -10,14 +10,16 @@ import {
   Query,
 } from '@nestjs/common';
 
-import { GetUser } from '../auth/decorators/get-user.decorator';
+import { GetUser } from 'src/modules/auth/decorators';
+
 import {
   CreateListDto,
   GetListsQueryDto,
   GetMediaItemsQueryDto,
+  GetPersonStatsQuery,
+  GetRatingStatsQueryDto,
   UpdateListDto,
 } from './dto';
-import { GetPersonStatsQuery } from './dto/get-person-stats-query.dto';
 import { ListService } from './list.service';
 
 @Controller('list')
@@ -83,5 +85,54 @@ export class ListController {
     @GetUser('id') userId: string,
   ) {
     return this.listService.getMediaItems(id, userId, query);
+  }
+
+  @Get(':id/media-type/stats')
+  getMediaTypeStats(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ) {
+    return this.listService.getMediaTypeStats(id, userId);
+  }
+
+  @Get(':id/rating/stats')
+  getRatingStats(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: GetRatingStatsQueryDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.listService.getRatingStats(id, userId, query);
+  }
+
+  @Get(':id/genres')
+  getGenres(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ) {
+    return this.listService.getGenres(id, userId);
+  }
+
+  @Get(':id/years')
+  getYears(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ) {
+    return this.listService.getYears(id, userId);
+  }
+
+  @Get(':id/years/stats')
+  getYearsStats(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ) {
+    return this.listService.getYearsAnalytics(id, userId);
+  }
+
+  @Get(':id/amount/stats')
+  getAmountStats(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ) {
+    return this.listService.getAmountStats(id, userId);
   }
 }

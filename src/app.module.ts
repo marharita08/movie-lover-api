@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 
 import { AuthModule } from './modules/auth/auth.module';
-import { AccessTokenGuard } from './modules/auth/guards/access-token.guard';
+import { AccessTokenGuard } from './modules/auth/guards';
 import { CsvParserModule } from './modules/csv-parser/csv-parser.module';
 import { FileModule } from './modules/file/file.module';
 import { ListModule } from './modules/list/list.module';

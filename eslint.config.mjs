@@ -30,7 +30,18 @@ export default tseslint.config(
       "simple-import-sort": simpleImportSort,
     },
     rules: {
-      "simple-import-sort/imports": "warn",
+      "simple-import-sort/imports": [
+        "warn",
+        {
+          groups: [
+            ["^\\u0000"],
+            ["^@?\\w"],
+            ["^src(/.*|$)"],
+            ["^\\.\\.(?!/?$)", "^\\.\\./?$"],
+            ["^\\./(?=[^/]*/*$)", "^\\.(?!/?$)", "^\\./?$"],
+          ],
+        },
+      ],
       "simple-import-sort/exports": "warn",
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
