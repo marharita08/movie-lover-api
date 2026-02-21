@@ -1,9 +1,9 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { File } from 'src/entities/file.entity';
 import { Repository } from 'typeorm';
 
-import { StorageService } from '../storage/storage.service';
+import { File } from 'src/entities';
+import { StorageService } from 'src/modules/storage/storage.service';
 
 @Injectable()
 export class FileService {

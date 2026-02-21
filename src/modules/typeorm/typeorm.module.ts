@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import {
   File,
   List,
+  ListMediaItem,
   MediaItem,
   MediaPerson,
   Otp,
@@ -12,7 +14,6 @@ import {
   Session,
   User,
 } from 'src/entities';
-import { ListMediaItem } from 'src/entities/list-media-item.entity';
 
 @Module({
   imports: [

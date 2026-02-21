@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
 import { MediaType } from 'src/entities';
 import { appendQueryParams } from 'src/utils';
 

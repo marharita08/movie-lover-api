@@ -4,13 +4,15 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
+
 import { OtpPurpose } from 'src/entities';
 import { EmailService } from 'src/modules/email/email.service';
 import { HashService } from 'src/modules/hash/hash.service';
 import { OtpService } from 'src/modules/otp/otp.service';
 import { ResetPasswordTokenService } from 'src/modules/reset-password-token/reset-password-token.service';
+import { UserDto } from 'src/modules/user/dto';
+import { UserService } from 'src/modules/user/user.service';
 
-import { UserDto, UserService } from '../../user';
 import { getOtpEmailMessage, OtpPurposeToEmailSubject } from '../const';
 import {
   ChangePasswordDto,
@@ -23,6 +25,7 @@ import {
   VerifyEmailDto,
   VerifyResetPasswordOtpDto,
 } from '../dto';
+
 import { SessionService } from './session.service';
 import { TokenService } from './token.service';
 
