@@ -15,7 +15,7 @@ export class EmailService {
   private readonly from: string;
   private readonly fromName: string;
   private readonly logger: Logger;
-  private client: TransactionalEmailsApi;
+  private readonly client: TransactionalEmailsApi;
 
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('BREVO_API_KEY');
@@ -52,8 +52,7 @@ export class EmailService {
     try {
       await this.client.sendTransacEmail(sendSmtpEmail);
     } catch (error) {
-      const errorDetails = error?.response?.body ?? error?.message ?? error;
-      this.logger.error('Error sending email:', errorDetails);
+      this.logger.error('Error sending email:', error);
       throw new InternalServerErrorException('Unable to send email');
     }
   }

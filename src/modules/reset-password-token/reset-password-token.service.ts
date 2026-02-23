@@ -1,10 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { randomBytes } from 'crypto';
 import { MoreThan, Repository } from 'typeorm';
 
 import { ResetPasswordToken } from 'src/entities';
 import { HashService } from 'src/modules/hash/hash.service';
+import { generateResetPasswordToken } from 'src/utils';
 
 @Injectable()
 export class ResetPasswordTokenService {
@@ -14,12 +14,8 @@ export class ResetPasswordTokenService {
     private readonly hashService: HashService,
   ) {}
 
-  public generateResetPasswordToken() {
-    return randomBytes(32).toString('hex');
-  }
-
   async create(userId: string) {
-    const token = this.generateResetPasswordToken();
+    const token = generateResetPasswordToken();
     const tokenHash = await this.hashService.hash(token);
     await this.resetPasswordTokenRepository.save({
       tokenHash,

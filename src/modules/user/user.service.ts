@@ -3,8 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { User } from 'src/entities';
-
-import { FileService } from '../file/file.service';
+import { FileService } from 'src/modules/file/file.service';
 
 import { CreateUserDto, UpdateUserDto, UserDto } from './dto';
 

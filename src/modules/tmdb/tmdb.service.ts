@@ -10,7 +10,9 @@ import { MediaType } from 'src/entities';
 import { appendQueryParams } from 'src/utils';
 
 import {
+  CastMemberDto,
   CreditsResponseDto,
+  CrewMemberDto,
   DiscoverMoviesQueryDto,
   MovieDetailsResponseDto,
   PersonResponseDto,
@@ -215,7 +217,7 @@ export class TmdbService {
   getTopActors(
     credits: CreditsResponseDto,
     limit: number = 5,
-  ): Array<{ id: number; name: string; profilePath: string | null }> {
+  ): Array<CastMemberDto> {
     if (!credits?.cast) return [];
 
     return credits.cast
@@ -223,9 +225,7 @@ export class TmdbService {
       .slice(0, limit);
   }
 
-  getDirectors(
-    credits: CreditsResponseDto,
-  ): Array<{ id: number; name: string; profilePath: string | null }> {
+  getDirectors(credits: CreditsResponseDto): Array<CrewMemberDto> {
     if (!credits?.crew) return [];
 
     return credits.crew.filter((person) => person.job === 'Director');
