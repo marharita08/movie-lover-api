@@ -8,9 +8,10 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class StorageService {
-  private storage: Storage;
-  private bucketName: string;
+  private readonly storage: Storage;
+  private readonly bucketName: string;
   private readonly logger = new Logger(StorageService.name);
+  private readonly baseUrl = 'https://storage.googleapis.com';
 
   constructor(private readonly configService: ConfigService) {
     const projectId = this.configService.get<string>('GCP_PROJECT_ID');
@@ -35,19 +36,24 @@ export class StorageService {
   async uploadFile(
     file: Express.Multer.File,
   ): Promise<{ publicUrl: string; key: string }> {
-    const bucket = this.storage.bucket(this.bucketName);
-    const fileName = `${Date.now()}-${file.originalname}`;
-    const fileUpload = bucket.file(fileName);
+    try {
+      const bucket = this.storage.bucket(this.bucketName);
+      const fileName = `${Date.now()}-${file.originalname}`;
+      const fileUpload = bucket.file(fileName);
 
-    await fileUpload.save(file.buffer, {
-      metadata: {
-        contentType: file.mimetype,
-      },
-      resumable: false,
-    });
+      await fileUpload.save(file.buffer, {
+        metadata: {
+          contentType: file.mimetype,
+        },
+        resumable: false,
+      });
 
-    const publicUrl = `https://storage.googleapis.com/${this.bucketName}/${fileName}`;
-    return { publicUrl, key: fileName };
+      const publicUrl = `${this.baseUrl}/${this.bucketName}/${fileName}`;
+      return { publicUrl, key: fileName };
+    } catch (err) {
+      this.logger.error(`Failed to upload file ${file.originalname}:`, err);
+      throw new InternalServerErrorException('Failed to upload file');
+    }
   }
 
   async deleteFile(fileName: string): Promise<void> {

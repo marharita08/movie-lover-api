@@ -34,7 +34,7 @@ export class CsvParserService {
             resolve(results.data);
           }
         },
-        error: (error) => {
+        error: (error: unknown) => {
           reject(error instanceof Error ? error : new Error(String(error)));
         },
       });

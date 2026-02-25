@@ -12,6 +12,8 @@ import { CsvParserModule } from 'src/modules/csv-parser/csv-parser.module';
 import { FileModule } from 'src/modules/file/file.module';
 import { TmdbModule } from 'src/modules/tmdb/tmdb.module';
 
+import { ListMediaItemModule } from '../list-media-item/list-media-item.module';
+
 import { ListController } from './list.controller';
 import { ListService } from './list.service';
 
@@ -27,6 +29,7 @@ import { ListService } from './list.service';
     FileModule,
     TmdbModule,
     CsvParserModule,
+    ListMediaItemModule,
   ],
   controllers: [ListController],
   providers: [ListService],

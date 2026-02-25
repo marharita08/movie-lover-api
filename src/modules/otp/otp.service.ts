@@ -49,10 +49,7 @@ export class OtpService {
     const otp = await this.otpRepository.findOne({
       where: { email, code, purpose },
     });
-    if (!otp) {
-      throw new BadRequestException('Invalid or expired OTP');
-    }
-    if (otp.expiresAt < new Date()) {
+    if (!otp || otp.expiresAt < new Date()) {
       throw new BadRequestException('Invalid or expired OTP');
     }
     await this.otpRepository.remove(otp);

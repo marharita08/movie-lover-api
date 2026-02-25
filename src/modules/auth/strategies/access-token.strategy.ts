@@ -1,17 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
+import { JwtPayloadDto } from '../dto/jwt-payload.dto';
 import { SessionService } from '../services';
-
-type JwtPayload = { sessionId: string };
 
 @Injectable()
 export class AccessTokenStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
-    private jwtService: JwtService,
     private configService: ConfigService,
     private sessionService: SessionService,
   ) {
@@ -28,21 +25,22 @@ export class AccessTokenStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  async validate(payload: JwtPayload) {
+  async validate(payload: JwtPayloadDto) {
     if (!payload.sessionId) {
-      throw new NotFoundException('User not found');
+      throw new UnauthorizedException('Invalid token payload');
     }
 
     const session = await this.sessionService.getById(payload.sessionId);
 
     if (!session?.user) {
-      throw new NotFoundException('User not found');
+      throw new UnauthorizedException('Session expired or not found');
     }
 
+    const { user, ...rest } = session;
+
     return {
-      ...payload,
-      session,
-      ...session.user,
+      session: rest,
+      ...user,
     };
   }
 }

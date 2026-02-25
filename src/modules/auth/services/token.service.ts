@@ -1,23 +1,19 @@
-import {
-  ForbiddenException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { StringValue } from 'ms';
 
 import { Session } from 'src/entities';
 
-import { SessionService } from './session.service';
+import { JwtPayloadDto } from '../dto/jwt-payload.dto';
 
-type TokenPayload = {
-  sessionId: string;
-};
+import { SessionService } from './session.service';
 
 @Injectable()
 export class TokenService {
-  private INVALID_TOKEN_MESSAGE = 'Your token has expired or is not valid';
+  private readonly INVALID_TOKEN_MESSAGE =
+    'Your token has expired or is not valid';
+  private readonly logger = new Logger(TokenService.name);
 
   constructor(
     private jwtService: JwtService,
@@ -26,7 +22,7 @@ export class TokenService {
   ) {}
 
   public async generateTokensPair(session: Session) {
-    const payload: TokenPayload = { sessionId: session.id };
+    const payload: JwtPayloadDto = { sessionId: session.id };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
@@ -65,7 +61,8 @@ export class TokenService {
       }
 
       return session;
-    } catch {
+    } catch (err) {
+      this.logger.error('Error verifying access token:', err);
       throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
     }
   }
@@ -89,11 +86,8 @@ export class TokenService {
       }
 
       return session;
-    } catch (e) {
-      if (e instanceof ForbiddenException) {
-        throw e;
-      }
-
+    } catch (err) {
+      this.logger.error('Error verifying refresh token:', err);
       throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
     }
   }

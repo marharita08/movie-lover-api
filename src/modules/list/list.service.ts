@@ -12,15 +12,12 @@ import {
   List,
   ListMediaItem,
   ListStatus,
-  MediaItem,
   MediaPerson,
   MediaType,
-  Person,
-  PersonRole,
 } from 'src/entities';
 import { CsvParserService } from 'src/modules/csv-parser/csv-parser.service';
 import { FileService } from 'src/modules/file/file.service';
-import { TmdbService } from 'src/modules/tmdb/tmdb.service';
+import { ListMediaItemService } from 'src/modules/list-media-item/list-media-item.service';
 
 import {
   CreateListDto,
@@ -41,15 +38,11 @@ export class ListService {
     private readonly listRepository: Repository<List>,
     @InjectRepository(ListMediaItem)
     private listMediaItemsRepository: Repository<ListMediaItem>,
-    @InjectRepository(MediaItem)
-    private mediaItemsRepository: Repository<MediaItem>,
-    @InjectRepository(Person)
-    private personsRepository: Repository<Person>,
     @InjectRepository(MediaPerson)
     private mediaPersonsRepository: Repository<MediaPerson>,
     private readonly fileService: FileService,
-    private readonly tmdbService: TmdbService,
-    private csvParserService: CsvParserService,
+    private readonly csvParserService: CsvParserService,
+    private readonly listMediaItemService: ListMediaItemService,
   ) {}
 
   async create(dto: CreateListDto, userId: string) {
@@ -149,7 +142,7 @@ export class ListService {
         const batch = rows.slice(i, i + BATCH_SIZE);
         await Promise.all(
           batch.map((row, index) =>
-            this.processMediaItem(list.id, row, i + index),
+            this.listMediaItemService.add(list.id, row, i + index),
           ),
         );
 
@@ -169,162 +162,6 @@ export class ListService {
         status: ListStatus.FAILED,
         errorMessage: error.message,
       });
-    }
-  }
-
-  private async processMediaItem(
-    listId: string,
-    row: IMDBRow,
-    position: number,
-  ): Promise<void> {
-    try {
-      let mediaItem = await this.mediaItemsRepository.findOne({
-        where: { imdbId: row.Const },
-      });
-
-      if (!mediaItem) {
-        const mediaType = this.parseMediaType(row['Title Type']);
-
-        mediaItem = this.mediaItemsRepository.create({
-          imdbId: row.Const,
-          title: row.Title,
-          type: mediaType,
-          genres: row.Genres ? row.Genres.split(',').map((g) => g.trim()) : [],
-          year: row.Year ? parseInt(row.Year) : null,
-          imdbRating: row['IMDb Rating']
-            ? parseFloat(row['IMDb Rating'])
-            : null,
-          runtime: row['Runtime (mins)']
-            ? parseInt(row['Runtime (mins)'])
-            : null,
-        });
-
-        const tmdbData = await this.tmdbService.findMediaByImdbId(row.Const);
-
-        if (tmdbData) {
-          mediaItem.tmdbId = tmdbData.data.id;
-          mediaItem.posterPath = tmdbData.data.posterPath;
-          mediaItem.status = tmdbData.data.status;
-          if (mediaItem.type === MediaType.TV) {
-            try {
-              const tvShowDetails = await this.tmdbService.getTVShowDetails(
-                tmdbData.data.id,
-              );
-              mediaItem.numberOfSeasons = tvShowDetails.numberOfSeasons;
-              mediaItem.numberOfEpisodes = tvShowDetails.numberOfEpisodes;
-            } catch (error) {
-              this.logger.error(
-                `Error getting TV show details for ${row.Const}:`,
-                error,
-              );
-            }
-          }
-
-          await this.mediaItemsRepository.save(mediaItem);
-
-          const credits =
-            tmdbData.type === MediaType.MOVIE
-              ? await this.tmdbService.getMovieCredits(tmdbData.data.id)
-              : await this.tmdbService.getTVShowCredits(tmdbData.data.id);
-
-          if (credits) {
-            const directors = this.tmdbService.getDirectors(credits);
-            await this.saveMediaPersons(
-              mediaItem.id,
-              directors,
-              PersonRole.DIRECTOR,
-            );
-
-            const topActors = this.tmdbService.getTopActors(credits, 5);
-            await this.saveMediaPersons(
-              mediaItem.id,
-              topActors,
-              PersonRole.ACTOR,
-            );
-          }
-
-          await this.sleep(25);
-        } else {
-          await this.mediaItemsRepository.save(mediaItem);
-        }
-      } else {
-        this.logger.log(`Media item ${row.Const} already exists, reusing`);
-      }
-
-      const listMediaItem = this.listMediaItemsRepository.create({
-        listId,
-        mediaItemId: mediaItem.id,
-        userRating: row['Your Rating'] ? parseInt(row['Your Rating']) : null,
-        dateRated: row['Date Rated'] ? new Date(row['Date Rated']) : null,
-        position,
-      });
-
-      await this.listMediaItemsRepository.save(listMediaItem);
-    } catch (error) {
-      this.logger.error(`Error processing media item ${row.Const}:`, error);
-    }
-  }
-
-  private parseMediaType(titleType?: string): MediaType {
-    const type = titleType?.toLowerCase();
-
-    if (type?.includes('tv') || type?.includes('series')) {
-      return MediaType.TV;
-    }
-
-    return MediaType.MOVIE;
-  }
-
-  private async saveMediaPersons(
-    mediaItemId: string,
-    persons: Array<{ id: number; name: string; profilePath?: string | null }>,
-    role: PersonRole,
-  ): Promise<void> {
-    for (const personData of persons) {
-      try {
-        const personInfo = await this.tmdbService.getPerson(personData.id);
-
-        await this.personsRepository
-          .createQueryBuilder()
-          .insert()
-          .into(Person)
-          .values({
-            tmdbId: personData.id,
-            name: personData.name,
-            profilePath: personData.profilePath,
-            imdbId: personInfo?.imdbId || null,
-          })
-          .orIgnore()
-          .execute();
-
-        const person = await this.personsRepository.findOne({
-          where: { tmdbId: personData.id },
-        });
-
-        if (!person) {
-          throw new Error(`Person ${personData.id} not found`);
-        }
-
-        const existingRelation = await this.mediaPersonsRepository.findOne({
-          where: {
-            mediaItemId,
-            personId: person.id,
-            role,
-          },
-        });
-
-        if (!existingRelation) {
-          const mediaPerson = this.mediaPersonsRepository.create({
-            mediaItemId,
-            personId: person.id,
-            role,
-          });
-
-          await this.mediaPersonsRepository.save(mediaPerson);
-        }
-      } catch (error) {
-        this.logger.error(`Error saving person ${personData.id}:`, error);
-      }
     }
   }
 
@@ -696,9 +533,5 @@ export class ListService {
         Number(totalMoviesRuntime.totalRuntime) +
         Number(totalTVShowsRuntime.totalRuntime),
     };
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

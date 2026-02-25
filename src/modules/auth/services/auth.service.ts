@@ -3,7 +3,6 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { createHash, randomBytes } from 'crypto';
 
 import { OtpPurpose } from 'src/entities';
 import { EmailService } from 'src/modules/email/email.service';
@@ -12,6 +11,7 @@ import { OtpService } from 'src/modules/otp/otp.service';
 import { ResetPasswordTokenService } from 'src/modules/reset-password-token/reset-password-token.service';
 import { UserDto } from 'src/modules/user/dto';
 import { UserService } from 'src/modules/user/user.service';
+import { generateSessionId } from 'src/utils';
 
 import { getOtpEmailMessage, OtpPurposeToEmailSubject } from '../const';
 import {
@@ -40,16 +40,6 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly resetPasswordTokenService: ResetPasswordTokenService,
   ) {}
-
-  public generateSessionId(userId: string, ip: string, userAgent: string) {
-    return createHash('sha256')
-      .update(JSON.stringify({ ip, userAgent, userId }))
-      .digest('base64');
-  }
-
-  public generateResetPasswordToken() {
-    return randomBytes(32).toString('hex');
-  }
 
   async signUp(signUpDto: SignUpDto) {
     const existingUser = await this.userService.getByEmail(signUpDto.email);
@@ -99,7 +89,7 @@ export class AuthService {
       lastLoginAt: new Date(),
     });
 
-    const sessionId = this.generateSessionId(user.id, ip, userAgent);
+    const sessionId = generateSessionId(user.id, ip, userAgent);
     const session = await this.sessionService.getOrCreate(sessionId, user);
 
     return await this.tokenService.generateTokensPair(session);
@@ -128,7 +118,7 @@ export class AuthService {
       lastLoginAt: new Date(),
     });
 
-    const sessionId = this.generateSessionId(user.id, ip, userAgent);
+    const sessionId = generateSessionId(user.id, ip, userAgent);
     const session = await this.sessionService.getOrCreate(sessionId, user);
 
     return await this.tokenService.generateTokensPair(session);
