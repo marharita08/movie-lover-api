@@ -374,48 +374,6 @@ describe('ListService', () => {
     });
   });
 
-  describe('update', () => {
-    it('should update and return list', async () => {
-      const list = makeList();
-      listRepository.findOne.mockResolvedValue(list);
-      listRepository.save.mockResolvedValue({
-        ...list,
-        name: 'Updated',
-      } as List);
-
-      const result = await service.update(
-        'list-uuid',
-        { name: 'Updated' },
-        'user-uuid',
-      );
-
-      expect(listRepository.save).toHaveBeenCalled();
-      expect(result.name).toBe('Updated');
-    });
-
-    it('should throw ForbiddenException if new file belongs to another user', async () => {
-      const list = makeList();
-      listRepository.findOne.mockResolvedValue(list);
-      fileService.findOne.mockResolvedValue(
-        makeFile({ userId: 'other-user' }) as never,
-      );
-
-      await expect(
-        service.update('list-uuid', { fileId: 'new-file-uuid' }, 'user-uuid'),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('should not check file if fileId is the same', async () => {
-      const list = makeList();
-      listRepository.findOne.mockResolvedValue(list);
-      listRepository.save.mockResolvedValue(list);
-
-      await service.update('list-uuid', { fileId: 'file-uuid' }, 'user-uuid');
-
-      expect(fileService.findOne).not.toHaveBeenCalled();
-    });
-  });
-
   describe('delete', () => {
     it('should delete file and remove list', async () => {
       const list = makeList();
@@ -700,6 +658,78 @@ describe('ListService', () => {
 
       expect(result.totalResults).toBe(5);
       expect(result.results[0].title).toBe('TV Show');
+    });
+  });
+
+  describe('getCountryAnalytics', () => {
+    it('should throw BadRequestException if list is not completed', async () => {
+      listRepository.findOne.mockResolvedValue(
+        makeList({ status: ListStatus.PROCESSING }),
+      );
+
+      await expect(
+        service.getCountryAnalytics('list-uuid', 'user-uuid'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should return country stats as record', async () => {
+      listRepository.findOne.mockResolvedValue(makeList());
+      const qb = makeQueryBuilder([
+        { country: 'US', count: '15' },
+        { country: 'GB', count: '8' },
+        { country: 'FR', count: '3' },
+      ]);
+      listMediaItemsRepository.createQueryBuilder.mockReturnValue(qb as never);
+
+      const result = await service.getCountryAnalytics(
+        'list-uuid',
+        'user-uuid',
+      );
+
+      expect(result).toEqual({ US: 15, GB: 8, FR: 3 });
+    });
+  });
+
+  describe('getCompanyAnalytics', () => {
+    it('should throw BadRequestException if list is not completed', async () => {
+      listRepository.findOne.mockResolvedValue(
+        makeList({ status: ListStatus.PROCESSING }),
+      );
+
+      await expect(
+        service.getCompanyAnalytics('list-uuid', 'user-uuid'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should return company stats as record', async () => {
+      listRepository.findOne.mockResolvedValue(makeList());
+      const qb = makeQueryBuilder([
+        { company: 'Warner Bros.', count: '12' },
+        { company: 'Universal Pictures', count: '9' },
+        { company: 'Paramount Pictures', count: '5' },
+      ]);
+      listMediaItemsRepository.createQueryBuilder.mockReturnValue(qb as never);
+
+      const result = await service.getCompanyAnalytics(
+        'list-uuid',
+        'user-uuid',
+      );
+
+      expect(result).toEqual({
+        'Warner Bros.': 12,
+        'Universal Pictures': 9,
+        'Paramount Pictures': 5,
+      });
+    });
+
+    it('should limit results to 40 companies', async () => {
+      listRepository.findOne.mockResolvedValue(makeList());
+      const qb = makeQueryBuilder([]);
+      listMediaItemsRepository.createQueryBuilder.mockReturnValue(qb as never);
+
+      await service.getCompanyAnalytics('list-uuid', 'user-uuid');
+
+      expect(qb.limit).toHaveBeenCalledWith(40);
     });
   });
 });

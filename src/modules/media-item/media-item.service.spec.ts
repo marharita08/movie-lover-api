@@ -66,7 +66,7 @@ const makeTmdbData = (type: MediaType = MediaType.MOVIE, overrides = {}) => ({
 const makeMovieDetails = (overrides = {}) => ({
   id: 100,
   status: 'Released',
-  productionCountries: [{ name: 'United States' }, { name: 'Canada' }],
+  productionCountries: [{ iso31661: 'US' }, { iso31661: 'CA' }],
   productionCompanies: [{ name: 'Warner Bros.' }, { name: 'Legendary' }],
   ...overrides,
 });
@@ -75,7 +75,7 @@ const makeTvShowDetails = (overrides = {}) => ({
   id: 100,
   status: 'Released',
   numberOfEpisodes: 30,
-  productionCountries: [{ name: 'United States' }],
+  productionCountries: [{ iso31661: 'US' }],
   productionCompanies: [{ name: 'HBO' }],
   nextEpisodeToAir: null,
   ...overrides,
@@ -142,6 +142,7 @@ describe('MediaItemService', () => {
       expect(mediaItemRepository.create).toHaveBeenCalledWith({
         imdbId: 'tt1234567',
         title: 'Test Movie',
+        type: MediaType.MOVIE,
         genres: ['Action', 'Drama'],
         year: 2024,
         imdbRating: 7.5,
@@ -225,7 +226,7 @@ describe('MediaItemService', () => {
       expect(mediaItem.tmdbId).toBe(100);
       expect(mediaItem.posterPath).toBe('/poster.jpg');
       expect(mediaItem.status).toBe('Released');
-      expect(mediaItem.countries).toEqual(['United States', 'Canada']);
+      expect(mediaItem.countries).toEqual(['US', 'CA']);
       expect(mediaItem.companies).toEqual(['Warner Bros.', 'Legendary']);
       expect(tmdbService.movieDetails).toHaveBeenCalledWith(100);
       expect(mediaItemRepository.save).toHaveBeenCalledWith(mediaItem);
@@ -282,7 +283,7 @@ describe('MediaItemService', () => {
 
       expect(tmdbService.getTVShowDetails).toHaveBeenCalledWith(100);
       expect(mediaItem.status).toBe('Released');
-      expect(mediaItem.countries).toEqual(['United States']);
+      expect(mediaItem.countries).toEqual(['US']);
       expect(mediaItem.companies).toEqual(['HBO']);
       expect(mediaItem.numberOfEpisodes).toBe(30);
       expect(mediaItem.nextEpisodeAirDate).toBeNull();

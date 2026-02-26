@@ -26,7 +26,6 @@ import {
   GetPersonStatsQuery,
   GetRatingStatsQueryDto,
   IMDBRow,
-  UpdateListDto,
 } from './dto';
 
 @Injectable()
@@ -106,20 +105,6 @@ export class ListService {
     return list;
   }
 
-  async update(id: string, dto: UpdateListDto, userId: string): Promise<List> {
-    const list = await this.findOne(id, userId);
-
-    if (dto.fileId && dto.fileId !== list.fileId) {
-      const file = await this.fileService.findOne(dto.fileId);
-      if (!file || file.userId !== userId) {
-        throw new ForbiddenException('File not found or access denied');
-      }
-    }
-
-    Object.assign(list, dto);
-    return this.listRepository.save(list);
-  }
-
   async delete(id: string, userId: string): Promise<void> {
     const list = await this.findOne(id, userId);
     await this.fileService.delete(list.fileId);
@@ -170,14 +155,7 @@ export class ListService {
 
   async getGenreAnalytics(listId: string, userId: string) {
     const list = await this.findOne(listId, userId);
-
-    if (list.status !== ListStatus.COMPLETED) {
-      throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
-      );
-    }
+    this.checkListStatus(list);
 
     const result: { genre: string; count: string }[] =
       await this.listMediaItemsRepository
@@ -207,14 +185,7 @@ export class ListService {
     query: GetPersonStatsQuery,
   ) {
     const list = await this.findOne(listId, userId);
-
-    if (list.status !== ListStatus.COMPLETED) {
-      throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
-      );
-    }
+    this.checkListStatus(list);
 
     const { role, page = 1, limit = 10 } = query;
 
@@ -278,14 +249,7 @@ export class ListService {
     query: GetMediaItemsQueryDto,
   ) {
     const list = await this.findOne(id, userId);
-
-    if (list.status !== ListStatus.COMPLETED) {
-      throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
-      );
-    }
+    this.checkListStatus(list);
 
     const { page = 1, limit = 10 } = query;
 
@@ -329,14 +293,7 @@ export class ListService {
 
   async getMediaTypeStats(listId: string, userId: string) {
     const list = await this.findOne(listId, userId);
-
-    if (list.status !== ListStatus.COMPLETED) {
-      throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
-      );
-    }
+    this.checkListStatus(list);
 
     const result: {
       type: MediaType;
@@ -367,14 +324,7 @@ export class ListService {
     query: GetRatingStatsQueryDto,
   ) {
     const list = await this.findOne(listId, userId);
-
-    if (list.status !== ListStatus.COMPLETED) {
-      throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
-      );
-    }
+    this.checkListStatus(list);
 
     const qb = this.listMediaItemsRepository
       .createQueryBuilder('lmi')
@@ -413,14 +363,7 @@ export class ListService {
 
   async getGenres(listId: string, userId: string) {
     const list = await this.findOne(listId, userId);
-
-    if (list.status !== ListStatus.COMPLETED) {
-      throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
-      );
-    }
+    this.checkListStatus(list);
 
     const result: { genre: string }[] = await this.listMediaItemsRepository
       .createQueryBuilder('lmi')
@@ -437,14 +380,7 @@ export class ListService {
 
   async getYears(listId: string, userId: string) {
     const list = await this.findOne(listId, userId);
-
-    if (list.status !== ListStatus.COMPLETED) {
-      throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
-      );
-    }
+    this.checkListStatus(list);
 
     const result: { year: number }[] = await this.listMediaItemsRepository
       .createQueryBuilder('lmi')
@@ -462,14 +398,7 @@ export class ListService {
 
   async getYearsAnalytics(listId: string, userId: string) {
     const list = await this.findOne(listId, userId);
-
-    if (list.status !== ListStatus.COMPLETED) {
-      throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
-      );
-    }
+    this.checkListStatus(list);
 
     const result: { year: string; count: string }[] =
       await this.listMediaItemsRepository
@@ -495,14 +424,7 @@ export class ListService {
 
   async getAmountStats(listId: string, userId: string) {
     const list = await this.findOne(listId, userId);
-
-    if (list.status !== ListStatus.COMPLETED) {
-      throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
-      );
-    }
+    this.checkListStatus(list);
 
     const total = await this.listMediaItemsRepository
       .createQueryBuilder('lmi')
@@ -542,14 +464,7 @@ export class ListService {
     query: GetMediaItemsQueryDto,
   ) {
     const list = await this.findOne(listId, userId);
-
-    if (list.status !== ListStatus.COMPLETED) {
-      throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
-      );
-    }
+    this.checkListStatus(list);
 
     const { page = 1, limit = 10 } = query;
 
@@ -595,5 +510,68 @@ export class ListService {
       page,
       totalResults: total,
     };
+  }
+
+  async getCountryAnalytics(listId: string, userId: string) {
+    const list = await this.findOne(listId, userId);
+    this.checkListStatus(list);
+
+    const result: { country: string; count: string }[] =
+      await this.listMediaItemsRepository
+        .createQueryBuilder('lmi')
+        .innerJoin('lmi.mediaItem', 'media')
+        .select('unnest(media.countries)', 'country')
+        .addSelect('COUNT(*)', 'count')
+        .where('lmi.listId = :listId', { listId })
+        .groupBy('country')
+        .orderBy('count', 'DESC')
+        .getRawMany();
+
+    const countryStats = result.reduce(
+      (acc, { country, count }) => {
+        acc[country] = parseInt(count);
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    return countryStats;
+  }
+
+  async getCompanyAnalytics(listId: string, userId: string) {
+    const list = await this.findOne(listId, userId);
+    this.checkListStatus(list);
+
+    const result: { company: string; count: string }[] =
+      await this.listMediaItemsRepository
+        .createQueryBuilder('lmi')
+        .innerJoin('lmi.mediaItem', 'media')
+        .select('unnest(media.companies)', 'company')
+        .addSelect('COUNT(*)', 'count')
+        .where('lmi.listId = :listId', { listId })
+        .groupBy('company')
+        .orderBy('count', 'DESC')
+        .limit(40)
+        .getRawMany();
+
+    const companyStats = result.reduce(
+      (acc, { company, count }) => {
+        acc[company] = parseInt(count);
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    return companyStats;
+  }
+
+  private checkListStatus(list: List) {
+    if (list.status !== ListStatus.COMPLETED) {
+      throw new BadRequestException(
+        list.status === ListStatus.PROCESSING
+          ? 'List is still processing. Please try again later.'
+          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
+      );
+    }
   }
 }

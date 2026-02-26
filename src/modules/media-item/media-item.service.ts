@@ -28,6 +28,7 @@ export class MediaItemService {
       mediaItem = this.mediaItemRepository.create({
         imdbId: row.Const,
         title: row.Title,
+        type: this.parseMediaType(row['Title Type']),
         genres: row.Genres ? row.Genres.split(',').map((g) => g.trim()) : [],
         year: row.Year ? parseInt(row.Year) : null,
         imdbRating: row['IMDb Rating'] ? parseFloat(row['IMDb Rating']) : null,
@@ -46,7 +47,7 @@ export class MediaItemService {
               tmdbData.data.id,
             );
             mediaItem.countries = movieDetails.productionCountries.map(
-              (country) => country.name,
+              (country) => country.iso31661,
             );
             mediaItem.companies = movieDetails.productionCompanies.map(
               (company) => company.name,
@@ -65,7 +66,7 @@ export class MediaItemService {
               tmdbData.data.id,
             );
             mediaItem.countries = tvShowDetails.productionCountries.map(
-              (country) => country.name,
+              (country) => country.iso31661,
             );
             mediaItem.companies = tvShowDetails.productionCompanies.map(
               (company) => company.name,
@@ -116,6 +117,16 @@ export class MediaItemService {
     }
 
     return mediaItem;
+  }
+
+  private parseMediaType(titleType?: string): MediaType {
+    const type = titleType?.toLowerCase();
+
+    if (type?.includes('tv') || type?.includes('series')) {
+      return MediaType.TV;
+    }
+
+    return MediaType.MOVIE;
   }
 
   private sleep(ms: number): Promise<void> {
