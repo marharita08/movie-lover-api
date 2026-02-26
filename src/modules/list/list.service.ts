@@ -132,7 +132,10 @@ export class ListService {
       if (!list) return;
 
       const csvContent = await this.fileService.download(list.fileId);
-      const rows = await this.csvParserService.parse<IMDBRow>(csvContent);
+      const rows = await this.csvParserService.parseAndValidate(
+        csvContent,
+        IMDBRow,
+      );
 
       list.totalItems = rows.length;
       await this.listRepository.save(list);
@@ -229,8 +232,7 @@ export class ListService {
     const total = totalCount ? parseInt(totalCount.count) : 0;
 
     const result: {
-      personId: string;
-      imdbId: string;
+      id: string;
       name: string;
       profilePath: string;
       itemCount: string;
@@ -240,18 +242,16 @@ export class ListService {
       .innerJoin('mp.person', 'person')
       .innerJoin('mp.mediaItem', 'media')
       .innerJoin('media.listMediaItems', 'lmi')
-      .select('person.id', 'personId')
+      .select('person.tmdbId', 'id')
       .addSelect('person.name', 'name')
       .addSelect('person.profilePath', 'profilePath')
-      .addSelect('person.imdbId', 'imdbId')
       .addSelect('COUNT(DISTINCT media.id)', 'itemCount')
       .addSelect('ARRAY_AGG(DISTINCT media.title)', 'titles')
       .where('lmi.listId = :listId', { listId })
       .andWhere('mp.role = :role', { role })
-      .groupBy('person.id')
+      .groupBy('person.tmdbId')
       .addGroupBy('person.name')
       .addGroupBy('person.profilePath')
-      .addGroupBy('person.imdbId')
       .orderBy('COUNT(DISTINCT media.id)', 'DESC')
       .addOrderBy('person.name', 'ASC')
       .limit(limit)
@@ -260,8 +260,7 @@ export class ListService {
 
     return {
       results: result.map((row) => ({
-        id: row.personId,
-        imdbId: row.imdbId,
+        id: row.id,
         name: row.name,
         profilePath: row.profilePath,
         itemCount: parseInt(row.itemCount),
@@ -305,6 +304,7 @@ export class ListService {
       title: string;
       posterPath: string;
       type: MediaType;
+      imdbId: string;
     }[] = await this.listMediaItemsRepository
       .createQueryBuilder('lmi')
       .innerJoin('lmi.mediaItem', 'media')
@@ -312,6 +312,7 @@ export class ListService {
       .addSelect('media.title', 'title')
       .addSelect('media.posterPath', 'posterPath')
       .addSelect('media.type', 'type')
+      .addSelect('media.imdbId', 'imdbId')
       .where('lmi.listId = :listId', { listId: id })
       .orderBy('lmi.position', 'DESC')
       .limit(limit)
@@ -532,6 +533,67 @@ export class ListService {
       totalRuntime:
         Number(totalMoviesRuntime.totalRuntime) +
         Number(totalTVShowsRuntime.totalRuntime),
+    };
+  }
+
+  async getUpcomingTVShows(
+    listId: string,
+    userId: string,
+    query: GetMediaItemsQueryDto,
+  ) {
+    const list = await this.findOne(listId, userId);
+
+    if (list.status !== ListStatus.COMPLETED) {
+      throw new BadRequestException(
+        list.status === ListStatus.PROCESSING
+          ? 'List is still processing. Please try again later.'
+          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
+      );
+    }
+
+    const { page = 1, limit = 10 } = query;
+
+    const now = new Date();
+    const oneYearFromNow = new Date();
+    oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+
+    const qb = this.listMediaItemsRepository
+      .createQueryBuilder('lmi')
+      .innerJoin('lmi.mediaItem', 'media')
+      .select('media.tmdbId', 'id')
+      .addSelect('media.title', 'title')
+      .addSelect('media.posterPath', 'posterPath')
+      .where('lmi.listId = :listId', { listId })
+      .andWhere('media.type = :type', { type: MediaType.TV })
+      .andWhere('media.nextEpisodeAirDate IS NOT NULL')
+      .andWhere('media.nextEpisodeAirDate BETWEEN :now AND :oneYearFromNow', {
+        now,
+        oneYearFromNow,
+      })
+      .orderBy('media.nextEpisodeAirDate', 'ASC')
+      .offset((page - 1) * limit)
+      .limit(limit);
+
+    const items = await qb.getRawMany();
+
+    const countQb = this.listMediaItemsRepository
+      .createQueryBuilder('lmi')
+      .innerJoin('lmi.mediaItem', 'media')
+      .where('lmi.listId = :listId', { listId })
+      .andWhere('media.type = :type', { type: MediaType.TV })
+      .andWhere('media.nextEpisodeAirDate IS NOT NULL')
+      .andWhere('media.nextEpisodeAirDate BETWEEN :now AND :oneYearFromNow', {
+        now,
+        oneYearFromNow,
+      });
+
+    const total = await countQb.getCount();
+
+    return {
+      results: items,
+      totalPages: Math.ceil(total / limit),
+      page,
+      totalResults: total,
     };
   }
 }

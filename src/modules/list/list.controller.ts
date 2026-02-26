@@ -135,4 +135,13 @@ export class ListController {
   ) {
     return this.listService.getAmountStats(id, userId);
   }
+
+  @Get(':id/tv/upcoming')
+  getUpcomingTvShows(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+    @Query() query: GetMediaItemsQueryDto,
+  ) {
+    return this.listService.getUpcomingTVShows(id, userId, query);
+  }
 }

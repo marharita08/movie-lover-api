@@ -12,6 +12,9 @@ export interface TvShowDetailsResponseDto {
     id: number;
     name: string;
   }[];
+  nextEpisodeToAir: {
+    airDate: string;
+  } | null;
   homepage: string;
   id: number;
   inProduction: boolean;

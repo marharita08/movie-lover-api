@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
+import { UserService } from 'src/modules/user/user.service';
+
 import { JwtPayloadDto } from '../dto/jwt-payload.dto';
 import { SessionService } from '../services';
 
@@ -11,6 +13,7 @@ export class AccessTokenStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
     private configService: ConfigService,
     private sessionService: SessionService,
+    private userService: UserService,
   ) {
     const jwtSecret = configService.get<string>('JWT_SECRET');
 
@@ -40,7 +43,7 @@ export class AccessTokenStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     return {
       session: rest,
-      ...user,
+      ...this.userService.excludePrivateFields(user),
     };
   }
 }

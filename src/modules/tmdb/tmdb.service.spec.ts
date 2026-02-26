@@ -24,6 +24,8 @@ const mockTmdbResponseMapperService = () => ({
   mapTvShowDetails: jest.fn(),
   mapCredits: jest.fn(),
   mapPerson: jest.fn(),
+  mapMovie: jest.fn(),
+  mapTvShow: jest.fn(),
 });
 
 const makeFetchResponse = (
@@ -183,12 +185,11 @@ describe('TmdbService', () => {
           tv_results: [],
         }),
       );
-      tmdbResponseMapperService.mapMovieDetails.mockReturnValue(
-        mappedMovie as never,
-      );
+      tmdbResponseMapperService.mapMovie.mockReturnValue(mappedMovie as never);
 
       const result = await service.findMediaByImdbId('tt1234567');
 
+      expect(tmdbResponseMapperService.mapMovie).toHaveBeenCalledWith(rawMovie);
       expect(result).toEqual({ type: MediaType.MOVIE, data: mappedMovie });
     });
 
@@ -201,12 +202,15 @@ describe('TmdbService', () => {
           tv_results: [rawTvShow],
         }),
       );
-      tmdbResponseMapperService.mapTvShowDetails.mockReturnValue(
+      tmdbResponseMapperService.mapTvShow.mockReturnValue(
         mappedTvShow as never,
       );
 
       const result = await service.findMediaByImdbId('tt1234567');
 
+      expect(tmdbResponseMapperService.mapTvShow).toHaveBeenCalledWith(
+        rawTvShow,
+      );
       expect(result).toEqual({ type: MediaType.TV, data: mappedTvShow });
     });
 
@@ -353,14 +357,16 @@ describe('TmdbService', () => {
       expect(result).toBe(mappedPerson);
     });
 
-    it('should return null if response is not ok', async () => {
+    it('should throw InternalServerErrorException on 404', async () => {
       jest
         .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(false, {}, 404));
+        .mockResolvedValue(
+          makeFetchResponse(false, { status_message: 'Not found' }, 404),
+        );
 
-      const result = await service.getPerson(999);
-
-      expect(result).toBeNull();
+      await expect(service.getPerson(999)).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 
@@ -368,9 +374,27 @@ describe('TmdbService', () => {
     it('should return top actors sorted by order', () => {
       const credits = {
         cast: [
-          { id: 3, name: 'Actor C', order: 2, profilePath: null },
-          { id: 1, name: 'Actor A', order: 0, profilePath: null },
-          { id: 2, name: 'Actor B', order: 1, profilePath: null },
+          {
+            id: 3,
+            name: 'Actor C',
+            order: 2,
+            profilePath: null,
+            character: '',
+          },
+          {
+            id: 1,
+            name: 'Actor A',
+            order: 0,
+            profilePath: null,
+            character: '',
+          },
+          {
+            id: 2,
+            name: 'Actor B',
+            order: 1,
+            profilePath: null,
+            character: '',
+          },
         ],
       } as CreditsResponseDto;
 
@@ -388,6 +412,7 @@ describe('TmdbService', () => {
           name: `Actor ${i}`,
           order: i,
           profilePath: null,
+          character: '',
         })),
       } as CreditsResponseDto;
 
@@ -396,19 +421,20 @@ describe('TmdbService', () => {
       expect(result).toHaveLength(3);
     });
 
-    it('should return 5 actors by default', () => {
+    it('should return 7 actors by default', () => {
       const credits = {
         cast: Array.from({ length: 10 }, (_, i) => ({
           id: i,
           name: `Actor ${i}`,
           order: i,
           profilePath: null,
+          character: '',
         })),
       } as CreditsResponseDto;
 
       const result = service.getTopActors(credits);
 
-      expect(result).toHaveLength(5);
+      expect(result).toHaveLength(7);
     });
 
     it('should return empty array if credits is null', () => {
@@ -424,9 +450,27 @@ describe('TmdbService', () => {
     it('should return only crew members with job Director', () => {
       const credits = {
         crew: [
-          { id: 1, name: 'Director A', job: 'Director', profilePath: null },
-          { id: 2, name: 'Producer B', job: 'Producer', profilePath: null },
-          { id: 3, name: 'Director C', job: 'Director', profilePath: null },
+          {
+            id: 1,
+            name: 'Director A',
+            job: 'Director',
+            profilePath: null,
+            department: 'Directing',
+          },
+          {
+            id: 2,
+            name: 'Producer B',
+            job: 'Producer',
+            profilePath: null,
+            department: 'Production',
+          },
+          {
+            id: 3,
+            name: 'Director C',
+            job: 'Director',
+            profilePath: null,
+            department: 'Directing',
+          },
         ],
       } as CreditsResponseDto;
 
@@ -438,7 +482,15 @@ describe('TmdbService', () => {
 
     it('should return empty array if no directors found', () => {
       const credits = {
-        crew: [{ id: 1, name: 'Producer', job: 'Producer', profilePath: null }],
+        crew: [
+          {
+            id: 1,
+            name: 'Producer',
+            job: 'Producer',
+            profilePath: null,
+            department: 'Production',
+          },
+        ],
       } as CreditsResponseDto;
 
       expect(service.getDirectors(credits)).toEqual([]);

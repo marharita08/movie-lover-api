@@ -18,6 +18,7 @@ const mockMediaItemRepository = () => ({
 
 const mockTmdbService = () => ({
   findMediaByImdbId: jest.fn(),
+  movieDetails: jest.fn(),
   getTVShowDetails: jest.fn(),
   getMovieCredits: jest.fn(),
   getTVShowCredits: jest.fn(),
@@ -58,14 +59,25 @@ const makeTmdbData = (type: MediaType = MediaType.MOVIE, overrides = {}) => ({
   data: {
     id: 100,
     posterPath: '/poster.jpg',
-    status: 'Released',
     ...overrides,
   },
 });
 
+const makeMovieDetails = (overrides = {}) => ({
+  id: 100,
+  status: 'Released',
+  productionCountries: [{ name: 'United States' }, { name: 'Canada' }],
+  productionCompanies: [{ name: 'Warner Bros.' }, { name: 'Legendary' }],
+  ...overrides,
+});
+
 const makeTvShowDetails = (overrides = {}) => ({
-  numberOfSeasons: 3,
+  id: 100,
+  status: 'Released',
   numberOfEpisodes: 30,
+  productionCountries: [{ name: 'United States' }],
+  productionCompanies: [{ name: 'HBO' }],
+  nextEpisodeToAir: null,
   ...overrides,
 });
 
@@ -130,7 +142,6 @@ describe('MediaItemService', () => {
       expect(mediaItemRepository.create).toHaveBeenCalledWith({
         imdbId: 'tt1234567',
         title: 'Test Movie',
-        type: MediaType.MOVIE,
         genres: ['Action', 'Drama'],
         year: 2024,
         imdbRating: 7.5,
@@ -193,6 +204,7 @@ describe('MediaItemService', () => {
     it('should enrich media item with tmdb data for movie and save credits', async () => {
       const mediaItem = makeMediaItem();
       const tmdbData = makeTmdbData(MediaType.MOVIE);
+      const movieDetails = makeMovieDetails();
       const credits = makeCredits();
       const directors = [{ id: 1, name: 'Director', profilePath: null }];
       const topActors = [{ id: 2, name: 'Actor', profilePath: null }];
@@ -200,6 +212,7 @@ describe('MediaItemService', () => {
       mediaItemRepository.findOne.mockResolvedValue(null as never);
       mediaItemRepository.create.mockReturnValue(mediaItem);
       tmdbService.findMediaByImdbId.mockResolvedValue(tmdbData as never);
+      tmdbService.movieDetails.mockResolvedValue(movieDetails as never);
       mediaItemRepository.save.mockResolvedValue(mediaItem);
       tmdbService.getMovieCredits.mockResolvedValue(credits as never);
       tmdbService.getDirectors.mockReturnValue(directors as never);
@@ -208,9 +221,13 @@ describe('MediaItemService', () => {
 
       await service.getOrCreate(makeImdbRow());
 
+      expect(mediaItem.type).toBe(MediaType.MOVIE);
       expect(mediaItem.tmdbId).toBe(100);
       expect(mediaItem.posterPath).toBe('/poster.jpg');
       expect(mediaItem.status).toBe('Released');
+      expect(mediaItem.countries).toEqual(['United States', 'Canada']);
+      expect(mediaItem.companies).toEqual(['Warner Bros.', 'Legendary']);
+      expect(tmdbService.movieDetails).toHaveBeenCalledWith(100);
       expect(mediaItemRepository.save).toHaveBeenCalledWith(mediaItem);
       expect(tmdbService.getMovieCredits).toHaveBeenCalledWith(100);
       expect(mediaPersonService.saveAll).toHaveBeenCalledWith(
@@ -223,6 +240,26 @@ describe('MediaItemService', () => {
         topActors,
         PersonRole.ACTOR,
       );
+    });
+
+    it('should continue if movieDetails throws', async () => {
+      const mediaItem = makeMediaItem();
+      const tmdbData = makeTmdbData(MediaType.MOVIE);
+      const credits = makeCredits();
+
+      mediaItemRepository.findOne.mockResolvedValue(null as never);
+      mediaItemRepository.create.mockReturnValue(mediaItem);
+      tmdbService.findMediaByImdbId.mockResolvedValue(tmdbData as never);
+      tmdbService.movieDetails.mockRejectedValue(new Error('TMDB error'));
+      mediaItemRepository.save.mockResolvedValue(mediaItem);
+      tmdbService.getMovieCredits.mockResolvedValue(credits as never);
+      tmdbService.getDirectors.mockReturnValue([]);
+      tmdbService.getTopActors.mockReturnValue([]);
+      mediaPersonService.saveAll.mockResolvedValue(undefined);
+
+      await expect(service.getOrCreate(makeImdbRow())).resolves.not.toThrow();
+
+      expect(mediaItemRepository.save).toHaveBeenCalled();
     });
 
     it('should fetch tv show details and enrich media item for TV type', async () => {
@@ -244,9 +281,35 @@ describe('MediaItemService', () => {
       await service.getOrCreate(makeImdbRow({ 'Title Type': 'tv series' }));
 
       expect(tmdbService.getTVShowDetails).toHaveBeenCalledWith(100);
-      expect(mediaItem.numberOfSeasons).toBe(3);
+      expect(mediaItem.status).toBe('Released');
+      expect(mediaItem.countries).toEqual(['United States']);
+      expect(mediaItem.companies).toEqual(['HBO']);
       expect(mediaItem.numberOfEpisodes).toBe(30);
+      expect(mediaItem.nextEpisodeAirDate).toBeNull();
       expect(tmdbService.getTVShowCredits).toHaveBeenCalledWith(100);
+    });
+
+    it('should set nextEpisodeAirDate when nextEpisodeToAir exists', async () => {
+      const mediaItem = makeMediaItem({ type: MediaType.TV });
+      const tmdbData = makeTmdbData(MediaType.TV);
+      const tvShowDetails = makeTvShowDetails({
+        nextEpisodeToAir: { airDate: '2024-12-25' },
+      });
+      const credits = makeCredits();
+
+      mediaItemRepository.findOne.mockResolvedValue(null as never);
+      mediaItemRepository.create.mockReturnValue(mediaItem);
+      tmdbService.findMediaByImdbId.mockResolvedValue(tmdbData as never);
+      tmdbService.getTVShowDetails.mockResolvedValue(tvShowDetails as never);
+      mediaItemRepository.save.mockResolvedValue(mediaItem);
+      tmdbService.getTVShowCredits.mockResolvedValue(credits as never);
+      tmdbService.getDirectors.mockReturnValue([]);
+      tmdbService.getTopActors.mockReturnValue([]);
+      mediaPersonService.saveAll.mockResolvedValue(undefined);
+
+      await service.getOrCreate(makeImdbRow({ 'Title Type': 'tv series' }));
+
+      expect(mediaItem.nextEpisodeAirDate).toEqual(new Date('2024-12-25'));
     });
 
     it('should continue if getTVShowDetails throws', async () => {
@@ -274,10 +337,12 @@ describe('MediaItemService', () => {
     it('should not save credits if credits are null', async () => {
       const mediaItem = makeMediaItem();
       const tmdbData = makeTmdbData(MediaType.MOVIE);
+      const movieDetails = makeMovieDetails();
 
       mediaItemRepository.findOne.mockResolvedValue(null as never);
       mediaItemRepository.create.mockReturnValue(mediaItem);
       tmdbService.findMediaByImdbId.mockResolvedValue(tmdbData as never);
+      tmdbService.movieDetails.mockResolvedValue(movieDetails as never);
       mediaItemRepository.save.mockResolvedValue(mediaItem);
       tmdbService.getMovieCredits.mockResolvedValue(null);
 
@@ -290,10 +355,12 @@ describe('MediaItemService', () => {
       const sleepSpy = jest.spyOn(service as never, 'sleep');
       const mediaItem = makeMediaItem();
       const tmdbData = makeTmdbData(MediaType.MOVIE);
+      const movieDetails = makeMovieDetails();
 
       mediaItemRepository.findOne.mockResolvedValue(null as never);
       mediaItemRepository.create.mockReturnValue(mediaItem);
       tmdbService.findMediaByImdbId.mockResolvedValue(tmdbData as never);
+      tmdbService.movieDetails.mockResolvedValue(movieDetails as never);
       mediaItemRepository.save.mockResolvedValue(mediaItem);
       tmdbService.getMovieCredits.mockResolvedValue(null);
 
@@ -301,31 +368,26 @@ describe('MediaItemService', () => {
 
       expect(sleepSpy).toHaveBeenCalledWith(25);
     });
-  });
 
-  describe('parseMediaType', () => {
-    let parseMediaType: (type?: string) => MediaType;
+    it('should pass 7 as limit to getTopActors', async () => {
+      const mediaItem = makeMediaItem();
+      const tmdbData = makeTmdbData(MediaType.MOVIE);
+      const movieDetails = makeMovieDetails();
+      const credits = makeCredits();
 
-    beforeEach(() => {
-      parseMediaType = (
-        service as unknown as { parseMediaType: (type?: string) => MediaType }
-      ).parseMediaType.bind(service);
-    });
+      mediaItemRepository.findOne.mockResolvedValue(null as never);
+      mediaItemRepository.create.mockReturnValue(mediaItem);
+      tmdbService.findMediaByImdbId.mockResolvedValue(tmdbData as never);
+      tmdbService.movieDetails.mockResolvedValue(movieDetails as never);
+      mediaItemRepository.save.mockResolvedValue(mediaItem);
+      tmdbService.getMovieCredits.mockResolvedValue(credits as never);
+      tmdbService.getDirectors.mockReturnValue([]);
+      tmdbService.getTopActors.mockReturnValue([]);
+      mediaPersonService.saveAll.mockResolvedValue(undefined);
 
-    it('should return TV for "tv series"', () => {
-      expect(parseMediaType('tv series')).toBe(MediaType.TV);
-    });
+      await service.getOrCreate(makeImdbRow());
 
-    it('should return TV for "mini series"', () => {
-      expect(parseMediaType('mini series')).toBe(MediaType.TV);
-    });
-
-    it('should return MOVIE for "movie"', () => {
-      expect(parseMediaType('movie')).toBe(MediaType.MOVIE);
-    });
-
-    it('should return MOVIE for undefined', () => {
-      expect(parseMediaType(undefined)).toBe(MediaType.MOVIE);
+      expect(tmdbService.getTopActors).toHaveBeenCalledWith(credits, 7);
     });
   });
 });

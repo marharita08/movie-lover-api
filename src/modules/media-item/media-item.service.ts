@@ -25,12 +25,9 @@ export class MediaItemService {
     });
 
     if (!mediaItem) {
-      const mediaType = this.parseMediaType(row['Title Type']);
-
       mediaItem = this.mediaItemRepository.create({
         imdbId: row.Const,
         title: row.Title,
-        type: mediaType,
         genres: row.Genres ? row.Genres.split(',').map((g) => g.trim()) : [],
         year: row.Year ? parseInt(row.Year) : null,
         imdbRating: row['IMDb Rating'] ? parseFloat(row['IMDb Rating']) : null,
@@ -40,16 +37,45 @@ export class MediaItemService {
       const tmdbData = await this.tmdbService.findMediaByImdbId(row.Const);
 
       if (tmdbData) {
+        mediaItem.type = tmdbData.type;
         mediaItem.tmdbId = tmdbData.data.id;
         mediaItem.posterPath = tmdbData.data.posterPath;
-        mediaItem.status = tmdbData.data.status;
+        if (mediaItem.type === MediaType.MOVIE) {
+          try {
+            const movieDetails = await this.tmdbService.movieDetails(
+              tmdbData.data.id,
+            );
+            mediaItem.countries = movieDetails.productionCountries.map(
+              (country) => country.name,
+            );
+            mediaItem.companies = movieDetails.productionCompanies.map(
+              (company) => company.name,
+            );
+            mediaItem.status = movieDetails.status;
+          } catch (error) {
+            this.logger.error(
+              `Error getting movie details for ${row.Const}:`,
+              error,
+            );
+          }
+        }
         if (mediaItem.type === MediaType.TV) {
           try {
             const tvShowDetails = await this.tmdbService.getTVShowDetails(
               tmdbData.data.id,
             );
-            mediaItem.numberOfSeasons = tvShowDetails.numberOfSeasons;
+            mediaItem.countries = tvShowDetails.productionCountries.map(
+              (country) => country.name,
+            );
+            mediaItem.companies = tvShowDetails.productionCompanies.map(
+              (company) => company.name,
+            );
+            mediaItem.status = tvShowDetails.status;
             mediaItem.numberOfEpisodes = tvShowDetails.numberOfEpisodes;
+            mediaItem.nextEpisodeAirDate = tvShowDetails.nextEpisodeToAir
+              ?.airDate
+              ? new Date(tvShowDetails.nextEpisodeToAir.airDate)
+              : null;
           } catch (error) {
             this.logger.error(
               `Error getting TV show details for ${row.Const}:`,
@@ -73,7 +99,7 @@ export class MediaItemService {
             PersonRole.DIRECTOR,
           );
 
-          const topActors = this.tmdbService.getTopActors(credits, 5);
+          const topActors = this.tmdbService.getTopActors(credits, 7);
           await this.mediaPersonService.saveAll(
             mediaItem.id,
             topActors,
@@ -90,16 +116,6 @@ export class MediaItemService {
     }
 
     return mediaItem;
-  }
-
-  private parseMediaType(titleType?: string): MediaType {
-    const type = titleType?.toLowerCase();
-
-    if (type?.includes('tv') || type?.includes('series')) {
-      return MediaType.TV;
-    }
-
-    return MediaType.MOVIE;
   }
 
   private sleep(ms: number): Promise<void> {

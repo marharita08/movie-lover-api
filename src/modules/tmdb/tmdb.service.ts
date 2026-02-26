@@ -14,7 +14,7 @@ import {
   CreditsResponseDto,
   CrewMemberDto,
   DiscoverMoviesQueryDto,
-  MovieDetailsResponseDto,
+  MovieDto,
   PersonResponseDto,
   TmdbCreditsResponseDto,
   TmdbFindResponseDto,
@@ -23,6 +23,7 @@ import {
   TmdbPersonResponseDto,
   TmdbTvShowDetailsResponseDto,
   TvShowDetailsResponseDto,
+  TvShowResponseDto,
 } from './dto';
 import { TmdbResponseMapperService } from './tmdb-response-mapper.service';
 
@@ -97,7 +98,7 @@ export class TmdbService {
 
   async findMediaByImdbId(imdbId: string): Promise<{
     type: MediaType;
-    data: MovieDetailsResponseDto | TvShowDetailsResponseDto;
+    data: MovieDto | TvShowResponseDto;
   } | null> {
     try {
       const url = new URL(`${this.baseUrl}/find/${imdbId}`);
@@ -114,9 +115,7 @@ export class TmdbService {
       if (data.movie_results?.length > 0) {
         return {
           type: MediaType.MOVIE,
-          data: this.tmdbResponseMapperService.mapMovieDetails(
-            data.movie_results[0],
-          ),
+          data: this.tmdbResponseMapperService.mapMovie(data.movie_results[0]),
         };
       }
 
@@ -124,7 +123,7 @@ export class TmdbService {
         const tvShow = data.tv_results[0];
         return {
           type: MediaType.TV,
-          data: this.tmdbResponseMapperService.mapTvShowDetails(tvShow),
+          data: this.tmdbResponseMapperService.mapTvShow(tvShow),
         };
       }
 
@@ -197,26 +196,33 @@ export class TmdbService {
     }
   }
 
-  async getPerson(personId: number): Promise<PersonResponseDto | null> {
+  async getPerson(personId: number): Promise<PersonResponseDto> {
     try {
       const url = new URL(`${this.baseUrl}/person/${personId}`);
       const response = await fetch(url, this.options);
 
       if (!response.ok) {
-        this.logger.warn(`Failed to get person details for ${personId}`);
-        return null;
+        if (response.status === 404) {
+          throw new NotFoundException((await response.json()).status_message);
+        }
+        const errorBody = await response.text();
+        throw new Error(
+          `Failed to fetch person details: ${response.status} - ${errorBody}`,
+        );
       }
       const person = (await response.json()) as TmdbPersonResponseDto;
       return this.tmdbResponseMapperService.mapPerson(person);
     } catch (error) {
       this.logger.error(`Error getting person ${personId}:`, error);
-      return null;
+      throw new InternalServerErrorException(
+        'message' in error ? error.message : 'Failed to get person',
+      );
     }
   }
 
   getTopActors(
     credits: CreditsResponseDto,
-    limit: number = 5,
+    limit: number = 7,
   ): Array<CastMemberDto> {
     if (!credits?.cast) return [];
 

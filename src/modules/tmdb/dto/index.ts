@@ -10,4 +10,6 @@ export * from './tmdb-movie-details-response.dto';
 export * from './tmdb-movies-response.dto';
 export * from './tmdb-person-response.dto';
 export * from './tmdb-tv-show-details-response.dto';
+export * from './tmdb-tv-show-response.dto';
 export * from './tv-show-details-response.dto';
+export * from './tv-show-response.dto';

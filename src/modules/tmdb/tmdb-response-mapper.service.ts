@@ -3,15 +3,19 @@ import { Injectable } from '@nestjs/common';
 import {
   CreditsResponseDto,
   MovieDetailsResponseDto,
+  MovieDto,
   MoviesResponseDto,
   PersonResponseDto,
   TmdbAggregateCreditsResponseDto,
   TmdbCreditsResponseDto,
   TmdbMovieDetailsResponseDto,
+  TMDBMovieDto,
   TMDBMoviesResponseDto,
   TmdbPersonResponseDto,
   TmdbTvShowDetailsResponseDto,
+  TmdbTvShowResponseDto,
   TvShowDetailsResponseDto,
+  TvShowResponseDto,
 } from './dto';
 
 @Injectable()
@@ -76,24 +80,46 @@ export class TmdbResponseMapperService {
   mapMoviesResponse(data: TMDBMoviesResponseDto): MoviesResponseDto {
     return {
       page: data.page,
-      results: data.results.map((movie) => ({
-        adult: movie.adult,
-        backdropPath: movie.backdrop_path,
-        genreIds: movie.genre_ids,
-        id: movie.id,
-        originalLanguage: movie.original_language,
-        originalTitle: movie.original_title,
-        overview: movie.overview,
-        popularity: movie.popularity,
-        posterPath: movie.poster_path,
-        releaseDate: movie.release_date,
-        title: movie.title,
-        video: movie.video,
-        voteAverage: movie.vote_average,
-        voteCount: movie.vote_count,
-      })),
+      results: data.results.map((movie) => this.mapMovie(movie)),
       totalPages: data.total_pages,
       totalResults: data.total_results,
+    };
+  }
+
+  mapMovie(movie: TMDBMovieDto): MovieDto {
+    return {
+      adult: movie.adult,
+      backdropPath: movie.backdrop_path,
+      genreIds: movie.genre_ids,
+      id: movie.id,
+      originalLanguage: movie.original_language,
+      originalTitle: movie.original_title,
+      overview: movie.overview,
+      popularity: movie.popularity,
+      posterPath: movie.poster_path,
+      releaseDate: movie.release_date,
+      title: movie.title,
+      video: movie.video,
+      voteAverage: movie.vote_average,
+      voteCount: movie.vote_count,
+    };
+  }
+
+  mapTvShow(tvShow: TmdbTvShowResponseDto): TvShowResponseDto {
+    return {
+      backdropPath: tvShow.backdrop_path,
+      firstAirDate: tvShow.first_air_date,
+      genreIds: tvShow.genre_ids,
+      id: tvShow.id,
+      name: tvShow.name,
+      originCountry: tvShow.origin_country,
+      originalLanguage: tvShow.original_language,
+      originalName: tvShow.original_name,
+      overview: tvShow.overview,
+      popularity: tvShow.popularity,
+      posterPath: tvShow.poster_path,
+      voteAverage: tvShow.vote_average,
+      voteCount: tvShow.vote_count,
     };
   }
 
@@ -156,6 +182,11 @@ export class TmdbResponseMapperService {
           name: language.name,
         }),
       ),
+      nextEpisodeToAir: tmdbTvShowDetails.next_episode_to_air
+        ? {
+            airDate: tmdbTvShowDetails.next_episode_to_air.air_date,
+          }
+        : null,
       status: tmdbTvShowDetails.status,
       tagline: tmdbTvShowDetails.tagline,
       type: tmdbTvShowDetails.type,

@@ -39,7 +39,6 @@ const makePerson = (overrides = {}) => ({
   id: 'person-uuid',
   tmdbId: 1,
   name: 'Actor Name',
-  imdbId: 'nm1234567',
   ...overrides,
 });
 
@@ -85,7 +84,6 @@ describe('MediaPersonService', () => {
       const person = makePerson();
       const mediaPerson = makeMediaPerson();
 
-      tmdbService.getPerson.mockResolvedValue({ imdbId: 'nm1234567' } as never);
       personService.getOrCreate.mockResolvedValue(person as never);
       mediaPersonRepository.findOne.mockResolvedValue(null as never);
       mediaPersonRepository.create.mockReturnValue(mediaPerson);
@@ -93,12 +91,10 @@ describe('MediaPersonService', () => {
 
       await service.add('media-uuid', personData, PersonRole.ACTOR);
 
-      expect(tmdbService.getPerson).toHaveBeenCalledWith(personData.id);
       expect(personService.getOrCreate).toHaveBeenCalledWith({
         tmdbId: personData.id,
         name: personData.name,
         profilePath: personData.profilePath,
-        imdbId: 'nm1234567',
       });
       expect(mediaPersonRepository.findOne).toHaveBeenCalledWith({
         where: {
@@ -115,28 +111,12 @@ describe('MediaPersonService', () => {
       expect(mediaPersonRepository.save).toHaveBeenCalledWith(mediaPerson);
     });
 
-    it('should use null as imdbId if tmdbService.getPerson returns null', async () => {
-      const personData = makePersonData();
-      const person = makePerson();
-      tmdbService.getPerson.mockResolvedValue(null);
-      personService.getOrCreate.mockResolvedValue(person as never);
-      mediaPersonRepository.findOne.mockResolvedValue(null as never);
-      mediaPersonRepository.create.mockReturnValue(makeMediaPerson());
-      mediaPersonRepository.save.mockResolvedValue(makeMediaPerson());
-
-      await service.add('media-uuid', personData, PersonRole.ACTOR);
-
-      expect(personService.getOrCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ imdbId: null }),
-      );
-    });
-
     it('should not save relation if it already exists', async () => {
       const personData = makePersonData();
       const person = makePerson();
       const existingRelation = makeMediaPerson();
 
-      tmdbService.getPerson.mockResolvedValue(null);
+      tmdbService.getPerson.mockResolvedValue(null as never);
       personService.getOrCreate.mockResolvedValue(person as never);
       mediaPersonRepository.findOne.mockResolvedValue(existingRelation);
 
@@ -148,7 +128,7 @@ describe('MediaPersonService', () => {
 
     it('should not throw if person is not found after getOrCreate', async () => {
       const personData = makePersonData();
-      tmdbService.getPerson.mockResolvedValue(null);
+      tmdbService.getPerson.mockResolvedValue(null as never);
       personService.getOrCreate.mockResolvedValue(null);
 
       await expect(
