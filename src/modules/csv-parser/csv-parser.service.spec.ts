@@ -260,7 +260,9 @@ describe('CsvParserService', () => {
 
       await expect(
         service.parseAndValidate('csv content', TestDto),
-      ).rejects.toThrow(/Validation failed for 10 rows\. First errors/);
+      ).rejects.toThrow(
+        /Validation failed for at least 10 rows\. First errors/,
+      );
 
       await expect(
         service.parseAndValidate('csv content', TestDto),
@@ -285,7 +287,7 @@ describe('CsvParserService', () => {
         await service.parseAndValidate('csv content', TestDto);
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
-        expect(error.message).toContain('20 rows');
+        expect(error.message).toContain('at least 10 rows');
       }
     });
 

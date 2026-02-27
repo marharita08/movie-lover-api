@@ -58,21 +58,35 @@ export class CsvParserService {
       throw new BadRequestException('CSV file is empty');
     }
 
+    const MAX_ERRORS_TO_REPORT = 10;
+    const BATCH_SIZE = 100;
+
     const validatedRows: T[] = [];
     const validationErrors: Array<{ row: number; errors: string[] }> = [];
-    const MAX_ERRORS_TO_REPORT = 10;
 
-    for (let i = 0; i < rows.length; i++) {
-      const dto = plainToClass(dtoClass, rows[i]);
-      const rowErrors = await validate(dto);
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
 
-      if (rowErrors.length > 0) {
-        validationErrors.push({
-          row: i + 1,
-          errors: this.formatValidationErrors(rowErrors),
-        });
-      } else {
-        validatedRows.push(dto);
+      const dtos = batch.map((row) => plainToClass(dtoClass, row));
+
+      const results = await Promise.all(dtos.map((dto) => validate(dto)));
+
+      for (let j = 0; j < results.length; j++) {
+        const errors = results[j];
+        const rowIndex = i + j;
+
+        if (errors.length > 0) {
+          validationErrors.push({
+            row: rowIndex + 1,
+            errors: this.formatValidationErrors(errors),
+          });
+
+          if (validationErrors.length >= MAX_ERRORS_TO_REPORT) {
+            break;
+          }
+        } else {
+          validatedRows.push(dtos[j]);
+        }
       }
 
       if (validationErrors.length >= MAX_ERRORS_TO_REPORT) {
@@ -81,7 +95,7 @@ export class CsvParserService {
     }
 
     if (validationErrors.length > 0) {
-      const totalErrorRows = rows.length - validatedRows.length;
+      const totalErrorRows = validationErrors.length;
 
       const errorDetails = validationErrors
         .slice(0, 5)
@@ -89,8 +103,9 @@ export class CsvParserService {
         .join('. ');
 
       const hasMoreErrors = totalErrorRows > 5;
+
       const message = hasMoreErrors
-        ? `Validation failed for ${totalErrorRows} rows. First errors - ${errorDetails}. Please fix the errors and try again.`
+        ? `Validation failed for at least ${totalErrorRows} rows. First errors - ${errorDetails}. Please fix the errors and try again.`
         : `Validation failed. ${errorDetails}`;
 
       throw new BadRequestException(message);
