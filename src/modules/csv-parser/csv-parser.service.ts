@@ -67,14 +67,16 @@ export class CsvParserService {
       const rowErrors = await validate(dto);
 
       if (rowErrors.length > 0) {
-        if (validationErrors.length < MAX_ERRORS_TO_REPORT) {
-          validationErrors.push({
-            row: i + 1,
-            errors: this.formatValidationErrors(rowErrors),
-          });
-        }
+        validationErrors.push({
+          row: i + 1,
+          errors: this.formatValidationErrors(rowErrors),
+        });
       } else {
         validatedRows.push(dto);
+      }
+
+      if (validationErrors.length >= MAX_ERRORS_TO_REPORT) {
+        break;
       }
     }
 
