@@ -273,6 +273,7 @@ describe('TmdbResponseMapperService', () => {
         spoken_languages: [],
         seasons: [],
         external_ids: { imdb_id: 'tt7654321' },
+        next_episode_to_air: null,
       } as unknown as TmdbTvShowDetailsResponseDto;
 
       const result = service.mapTvShowDetails(input);
@@ -284,11 +285,51 @@ describe('TmdbResponseMapperService', () => {
       expect(result.numberOfSeasons).toBe(2);
       expect(result.originalName).toBe('Original Name');
       expect(result.imdbId).toBe('tt7654321');
+      expect(result.nextEpisodeToAir).toBeNull();
+    });
+
+    it('should map nextEpisodeToAir when present', () => {
+      const input = {
+        id: 1,
+        created_by: [],
+        production_companies: [],
+        production_countries: [],
+        spoken_languages: [],
+        seasons: [],
+        external_ids: {},
+        next_episode_to_air: {
+          air_date: '2024-12-25',
+        },
+      } as unknown as TmdbTvShowDetailsResponseDto;
+
+      const result = service.mapTvShowDetails(input);
+
+      expect(result.nextEpisodeToAir).toEqual({
+        airDate: '2024-12-25',
+      });
+    });
+
+    it('should return null for nextEpisodeToAir when not present', () => {
+      const input = {
+        id: 1,
+        created_by: [],
+        production_companies: [],
+        production_countries: [],
+        spoken_languages: [],
+        seasons: [],
+        external_ids: {},
+        next_episode_to_air: null,
+      } as unknown as TmdbTvShowDetailsResponseDto;
+
+      const result = service.mapTvShowDetails(input);
+
+      expect(result.nextEpisodeToAir).toBeNull();
     });
 
     it('should handle missing arrays gracefully', () => {
       const input = {
         external_ids: {},
+        next_episode_to_air: null,
       } as unknown as TmdbTvShowDetailsResponseDto;
 
       const result = service.mapTvShowDetails(input);

@@ -23,7 +23,6 @@ const makePersonDto = (overrides = {}) => ({
   tmdbId: 1,
   name: 'Actor Name',
   profilePath: '/profile.jpg',
-  imdbId: 'nm1234567',
   ...overrides,
 });
 
@@ -33,7 +32,6 @@ const makePerson = (overrides: Partial<Person> = {}): Person =>
     tmdbId: 1,
     name: 'Actor Name',
     profilePath: '/profile.jpg',
-    imdbId: 'nm1234567',
     ...overrides,
   }) as Person;
 
@@ -73,7 +71,6 @@ describe('PersonService', () => {
         tmdbId: dto.tmdbId,
         name: dto.name,
         profilePath: dto.profilePath,
-        imdbId: dto.imdbId,
       });
       expect(mockInsertQueryBuilder.orIgnore).toHaveBeenCalled();
       expect(mockInsertQueryBuilder.execute).toHaveBeenCalled();
@@ -93,14 +90,14 @@ describe('PersonService', () => {
     });
 
     it('should work correctly with nullable profilePath and imdbId', async () => {
-      const dto = makePersonDto({ profilePath: null, imdbId: null });
-      const person = makePerson({ profilePath: null, imdbId: null });
+      const dto = makePersonDto({ profilePath: null });
+      const person = makePerson({ profilePath: null });
       personRepository.findOne.mockResolvedValue(person);
 
       const result = await service.getOrCreate(dto);
 
       expect(mockInsertQueryBuilder.values).toHaveBeenCalledWith(
-        expect.objectContaining({ profilePath: null, imdbId: null }),
+        expect.objectContaining({ profilePath: null }),
       );
       expect(result).toBe(person);
     });

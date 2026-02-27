@@ -22,7 +22,6 @@ export class PersonService {
         tmdbId: dto.tmdbId,
         name: dto.name,
         profilePath: dto.profilePath,
-        imdbId: dto.imdbId,
       })
       .orIgnore()
       .execute();

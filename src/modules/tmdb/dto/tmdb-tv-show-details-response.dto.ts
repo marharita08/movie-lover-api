@@ -34,6 +34,9 @@ export interface TmdbTvShowDetailsResponseDto {
     show_id: number;
     still_path: string | null;
   } | null;
+  next_episode_to_air: {
+    air_date: string;
+  } | null;
   name: string;
   networks: {
     id: number;

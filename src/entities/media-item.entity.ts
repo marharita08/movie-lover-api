@@ -28,6 +28,15 @@ export class MediaItem extends BaseEntity {
   @Column('text', { array: true, default: [] })
   genres: string[];
 
+  @Column('text', { array: true, default: [] })
+  countries: string[];
+
+  @Column('text', { array: true, default: [] })
+  companies: string[];
+
+  @Column({ type: 'date', nullable: true })
+  nextEpisodeAirDate: Date | null;
+
   @Column({ type: 'int', nullable: true })
   @Index()
   year: number | null;
@@ -44,9 +53,6 @@ export class MediaItem extends BaseEntity {
 
   @Column({ type: 'varchar', nullable: true })
   posterPath: string | null;
-
-  @Column({ type: 'int', nullable: true })
-  numberOfSeasons: number | null;
 
   @Column({ type: 'int', nullable: true })
   numberOfEpisodes: number | null;

@@ -1,4 +1,4 @@
-interface MovieDto {
+export interface MovieDto {
   adult: boolean;
   backdropPath: string | null;
   genreIds: number[];

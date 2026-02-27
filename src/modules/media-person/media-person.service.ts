@@ -4,7 +4,6 @@ import { Repository } from 'typeorm';
 
 import { MediaPerson, PersonRole } from 'src/entities';
 import { PersonService } from 'src/modules/person/person.service';
-import { TmdbService } from 'src/modules/tmdb/tmdb.service';
 
 import { CastMemberDto, CrewMemberDto } from '../tmdb/dto';
 
@@ -15,7 +14,6 @@ export class MediaPersonService {
   constructor(
     @InjectRepository(MediaPerson)
     private readonly mediaPersonRepository: Repository<MediaPerson>,
-    private readonly tmdbService: TmdbService,
     private readonly personService: PersonService,
   ) {}
 
@@ -25,13 +23,10 @@ export class MediaPersonService {
     role: PersonRole,
   ) {
     try {
-      const personInfo = await this.tmdbService.getPerson(personData.id);
-
       const person = await this.personService.getOrCreate({
         tmdbId: personData.id,
         name: personData.name,
         profilePath: personData.profilePath,
-        imdbId: personInfo?.imdbId || null,
       });
 
       if (!person) {

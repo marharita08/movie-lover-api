@@ -5,7 +5,6 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
-  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -18,7 +17,6 @@ import {
   GetMediaItemsQueryDto,
   GetPersonStatsQuery,
   GetRatingStatsQueryDto,
-  UpdateListDto,
 } from './dto';
 import { ListService } from './list.service';
 
@@ -42,15 +40,6 @@ export class ListController {
     @GetUser('id') userId: string,
   ) {
     return this.listService.findOne(id, userId);
-  }
-
-  @Patch(':id')
-  update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateListDto,
-    @GetUser('id') userId: string,
-  ) {
-    return this.listService.update(id, dto, userId);
   }
 
   @Delete(':id')
@@ -134,5 +123,30 @@ export class ListController {
     @GetUser('id') userId: string,
   ) {
     return this.listService.getAmountStats(id, userId);
+  }
+
+  @Get(':id/tv/upcoming')
+  getUpcomingTvShows(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+    @Query() query: GetMediaItemsQueryDto,
+  ) {
+    return this.listService.getUpcomingTVShows(id, userId, query);
+  }
+
+  @Get(':id/country/stats')
+  getCountryStats(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ) {
+    return this.listService.getCountryAnalytics(id, userId);
+  }
+
+  @Get(':id/company/stats')
+  getCompanyStats(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ) {
+    return this.listService.getCompanyAnalytics(id, userId);
   }
 }

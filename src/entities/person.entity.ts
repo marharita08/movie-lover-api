@@ -13,9 +13,6 @@ export class Person extends BaseEntity {
   @Column({ unique: true })
   tmdbId: number;
 
-  @Column({ type: 'varchar', nullable: true })
-  imdbId: string | null;
-
   @Column()
   name: string;
 

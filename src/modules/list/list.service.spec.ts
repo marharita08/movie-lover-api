@@ -45,7 +45,7 @@ const mockFileService = () => ({
 });
 
 const mockCsvParserService = () => ({
-  parse: jest.fn(),
+  parseAndValidate: jest.fn(),
 });
 
 const mockListMediaItemService = () => ({
@@ -156,7 +156,7 @@ describe('ListService', () => {
       listRepository.save.mockResolvedValue(list);
       listRepository.findOne.mockResolvedValue(list);
       fileService.download.mockResolvedValue('csv content');
-      csvParserService.parse.mockResolvedValue([]);
+      csvParserService.parseAndValidate.mockResolvedValue([]);
 
       const result = await service.create(
         { name: 'List', fileId: 'file-uuid' },
@@ -182,27 +182,37 @@ describe('ListService', () => {
       return list;
     };
 
-    it('should download csv, parse rows and set totalItems', async () => {
+    it('should download csv, parse and validate rows, and set totalItems', async () => {
       const list = setupCreate();
-      const rows = [{ Const: 'tt1' }, { Const: 'tt2' }];
+      const rows = [
+        { Const: 'tt1', Title: 'Title 1', Genres: 'Genre1, Genre2' },
+        { Const: 'tt2', Title: 'Title 2', Genres: 'Genre3, Genre4' },
+      ];
       listRepository.findOne.mockResolvedValue(list);
       fileService.download.mockResolvedValue('csv content');
-      csvParserService.parse.mockResolvedValue(rows as never);
+      csvParserService.parseAndValidate.mockResolvedValue(rows as never);
       listMediaItemService.add.mockResolvedValue(undefined);
 
       await service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid');
 
       expect(fileService.download).toHaveBeenCalledWith(list.fileId);
-      expect(csvParserService.parse).toHaveBeenCalledWith('csv content');
+      expect(csvParserService.parseAndValidate).toHaveBeenCalledWith(
+        'csv content',
+        expect.any(Function),
+      );
       expect(list.totalItems).toBe(2);
     });
 
     it('should call listMediaItemService.add for each row with correct position', async () => {
       const list = setupCreate();
-      const rows = [{ Const: 'tt1' }, { Const: 'tt2' }, { Const: 'tt3' }];
+      const rows = [
+        { Const: 'tt1', Title: 'Title 1', Genres: 'Genre1, Genre2' },
+        { Const: 'tt2', Title: 'Title 2', Genres: 'Genre3, Genre4' },
+        { Const: 'tt3', Title: 'Title 3', Genres: 'Genre5, Genre6' },
+      ];
       listRepository.findOne.mockResolvedValue(list);
       fileService.download.mockResolvedValue('csv content');
-      csvParserService.parse.mockResolvedValue(rows as never);
+      csvParserService.parseAndValidate.mockResolvedValue(rows as never);
       listMediaItemService.add.mockResolvedValue(undefined);
 
       await service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid');
@@ -227,10 +237,14 @@ describe('ListService', () => {
 
     it('should process rows in batches of 10', async () => {
       const list = setupCreate();
-      const rows = Array.from({ length: 25 }, (_, i) => ({ Const: `tt${i}` }));
+      const rows = Array.from({ length: 25 }, (_, i) => ({
+        Const: `tt${i}`,
+        Title: `Title ${i}`,
+        Genres: `Genre${i}`,
+      }));
       listRepository.findOne.mockResolvedValue(list);
       fileService.download.mockResolvedValue('csv content');
-      csvParserService.parse.mockResolvedValue(rows as never);
+      csvParserService.parseAndValidate.mockResolvedValue(rows as never);
       listMediaItemService.add.mockResolvedValue(undefined);
 
       await service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid');
@@ -262,7 +276,7 @@ describe('ListService', () => {
       const list = setupCreate();
       listRepository.findOne.mockResolvedValue(list);
       fileService.download.mockResolvedValue('csv content');
-      csvParserService.parse.mockResolvedValue([]);
+      csvParserService.parseAndValidate.mockResolvedValue([]);
       listRepository.save.mockResolvedValue(list);
 
       await service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid');
@@ -292,7 +306,7 @@ describe('ListService', () => {
       await service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid');
 
       expect(fileService.download).not.toHaveBeenCalled();
-      expect(csvParserService.parse).not.toHaveBeenCalled();
+      expect(csvParserService.parseAndValidate).not.toHaveBeenCalled();
     });
   });
 
@@ -357,48 +371,6 @@ describe('ListService', () => {
       await expect(service.findOne('list-uuid', 'user-uuid')).rejects.toThrow(
         NotFoundException,
       );
-    });
-  });
-
-  describe('update', () => {
-    it('should update and return list', async () => {
-      const list = makeList();
-      listRepository.findOne.mockResolvedValue(list);
-      listRepository.save.mockResolvedValue({
-        ...list,
-        name: 'Updated',
-      } as List);
-
-      const result = await service.update(
-        'list-uuid',
-        { name: 'Updated' },
-        'user-uuid',
-      );
-
-      expect(listRepository.save).toHaveBeenCalled();
-      expect(result.name).toBe('Updated');
-    });
-
-    it('should throw ForbiddenException if new file belongs to another user', async () => {
-      const list = makeList();
-      listRepository.findOne.mockResolvedValue(list);
-      fileService.findOne.mockResolvedValue(
-        makeFile({ userId: 'other-user' }) as never,
-      );
-
-      await expect(
-        service.update('list-uuid', { fileId: 'new-file-uuid' }, 'user-uuid'),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('should not check file if fileId is the same', async () => {
-      const list = makeList();
-      listRepository.findOne.mockResolvedValue(list);
-      listRepository.save.mockResolvedValue(list);
-
-      await service.update('list-uuid', { fileId: 'file-uuid' }, 'user-uuid');
-
-      expect(fileService.findOne).not.toHaveBeenCalled();
     });
   });
 
@@ -474,10 +446,9 @@ describe('ListService', () => {
 
       const resultsQb = makeQueryBuilder([
         {
-          personId: 'p-uuid',
+          id: 'p-uuid',
           name: 'Actor',
           profilePath: '/profile.jpg',
-          imdbId: 'nm123',
           itemCount: '5',
           titles: ['Movie 1', 'Movie 2'],
         },
@@ -499,7 +470,6 @@ describe('ListService', () => {
         id: 'p-uuid',
         name: 'Actor',
         profilePath: '/profile.jpg',
-        imdbId: 'nm123',
         itemCount: 5,
         titles: 'Movie 1, Movie 2',
       });
@@ -529,6 +499,7 @@ describe('ListService', () => {
           title: 'Movie',
           posterPath: '/poster.jpg',
           type: MediaType.MOVIE,
+          imdbId: 'tt1234567',
         },
       ]);
 
@@ -654,6 +625,111 @@ describe('ListService', () => {
         totalTVShowsRuntime: '800',
         totalRuntime: 2000,
       });
+    });
+  });
+
+  describe('getUpcomingTVShows', () => {
+    it('should return upcoming TV shows within next year', async () => {
+      listRepository.findOne.mockResolvedValue(makeList());
+
+      const resultsQb = makeQueryBuilder([
+        {
+          id: 1,
+          title: 'TV Show',
+          posterPath: '/poster.jpg',
+        },
+      ]);
+
+      const countQb = makeQueryBuilder();
+      countQb.getCount.mockResolvedValue(5);
+
+      listMediaItemsRepository.createQueryBuilder
+        .mockReturnValueOnce(resultsQb as never)
+        .mockReturnValueOnce(countQb as never);
+
+      const result = await service.getUpcomingTVShows(
+        'list-uuid',
+        'user-uuid',
+        {
+          page: 1,
+          limit: 10,
+        },
+      );
+
+      expect(result.totalResults).toBe(5);
+      expect(result.results[0].title).toBe('TV Show');
+    });
+  });
+
+  describe('getCountryAnalytics', () => {
+    it('should throw BadRequestException if list is not completed', async () => {
+      listRepository.findOne.mockResolvedValue(
+        makeList({ status: ListStatus.PROCESSING }),
+      );
+
+      await expect(
+        service.getCountryAnalytics('list-uuid', 'user-uuid'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should return country stats as record', async () => {
+      listRepository.findOne.mockResolvedValue(makeList());
+      const qb = makeQueryBuilder([
+        { country: 'US', count: '15' },
+        { country: 'GB', count: '8' },
+        { country: 'FR', count: '3' },
+      ]);
+      listMediaItemsRepository.createQueryBuilder.mockReturnValue(qb as never);
+
+      const result = await service.getCountryAnalytics(
+        'list-uuid',
+        'user-uuid',
+      );
+
+      expect(result).toEqual({ US: 15, GB: 8, FR: 3 });
+    });
+  });
+
+  describe('getCompanyAnalytics', () => {
+    it('should throw BadRequestException if list is not completed', async () => {
+      listRepository.findOne.mockResolvedValue(
+        makeList({ status: ListStatus.PROCESSING }),
+      );
+
+      await expect(
+        service.getCompanyAnalytics('list-uuid', 'user-uuid'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should return company stats as record', async () => {
+      listRepository.findOne.mockResolvedValue(makeList());
+      const qb = makeQueryBuilder([
+        { company: 'Warner Bros.', count: '12' },
+        { company: 'Universal Pictures', count: '9' },
+        { company: 'Paramount Pictures', count: '5' },
+      ]);
+      listMediaItemsRepository.createQueryBuilder.mockReturnValue(qb as never);
+
+      const result = await service.getCompanyAnalytics(
+        'list-uuid',
+        'user-uuid',
+      );
+
+      expect(result).toEqual({
+        'Warner Bros.': 12,
+        'Universal Pictures': 9,
+        'Paramount Pictures': 5,
+      });
+    });
+
+    it('should limit results to 40 companies', async () => {
+      listRepository.findOne.mockResolvedValue(makeList());
+      const qb = makeQueryBuilder([]);
+      listMediaItemsRepository.createQueryBuilder.mockReturnValue(qb as never);
+
+      await service.getCompanyAnalytics('list-uuid', 'user-uuid');
+
+      expect(qb.limit).toHaveBeenCalledWith(40);
     });
   });
 });
