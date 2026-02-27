@@ -110,8 +110,6 @@ describe('MediaItemService', () => {
     mediaItemRepository = module.get(getRepositoryToken(MediaItem));
     tmdbService = module.get(TmdbService);
     mediaPersonService = module.get(MediaPersonService);
-
-    jest.spyOn(service as never, 'sleep').mockResolvedValue(undefined as never);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -350,24 +348,6 @@ describe('MediaItemService', () => {
       await service.getOrCreate(makeImdbRow());
 
       expect(mediaPersonService.saveAll).not.toHaveBeenCalled();
-    });
-
-    it('should call sleep after saving credits', async () => {
-      const sleepSpy = jest.spyOn(service as never, 'sleep');
-      const mediaItem = makeMediaItem();
-      const tmdbData = makeTmdbData(MediaType.MOVIE);
-      const movieDetails = makeMovieDetails();
-
-      mediaItemRepository.findOne.mockResolvedValue(null as never);
-      mediaItemRepository.create.mockReturnValue(mediaItem);
-      tmdbService.findMediaByImdbId.mockResolvedValue(tmdbData as never);
-      tmdbService.movieDetails.mockResolvedValue(movieDetails as never);
-      mediaItemRepository.save.mockResolvedValue(mediaItem);
-      tmdbService.getMovieCredits.mockResolvedValue(null);
-
-      await service.getOrCreate(makeImdbRow());
-
-      expect(sleepSpy).toHaveBeenCalledWith(25);
     });
 
     it('should pass 7 as limit to getTopActors', async () => {

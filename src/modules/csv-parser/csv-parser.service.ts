@@ -58,37 +58,40 @@ export class CsvParserService {
       throw new BadRequestException('CSV file is empty');
     }
 
-    const firstRow = plainToClass(dtoClass, rows[0]);
-    const errors = await validate(firstRow);
-
-    if (errors.length > 0) {
-      throw new BadRequestException({
-        message: `Invalid CSV structure: ${this.formatValidationErrors(errors).join(', ')}`,
-      });
-    }
-
     const validatedRows: T[] = [];
     const validationErrors: Array<{ row: number; errors: string[] }> = [];
+    const MAX_ERRORS_TO_REPORT = 10;
 
     for (let i = 0; i < rows.length; i++) {
       const dto = plainToClass(dtoClass, rows[i]);
       const rowErrors = await validate(dto);
 
       if (rowErrors.length > 0) {
-        validationErrors.push({
-          row: i + 1,
-          errors: this.formatValidationErrors(rowErrors),
-        });
+        if (validationErrors.length < MAX_ERRORS_TO_REPORT) {
+          validationErrors.push({
+            row: i + 1,
+            errors: this.formatValidationErrors(rowErrors),
+          });
+        }
       } else {
         validatedRows.push(dto);
       }
     }
 
     if (validationErrors.length > 0) {
-      throw new BadRequestException({
-        message: `Some rows contain invalid data: ${validationErrors.map((error) => `Row ${error.row}: ${error.errors.join(', ')}`).join(', ')}`,
-        errors: validationErrors,
-      });
+      const totalErrorRows = rows.length - validatedRows.length;
+
+      const errorDetails = validationErrors
+        .slice(0, 5)
+        .map((e) => `Row ${e.row}: ${e.errors[0]}`)
+        .join('. ');
+
+      const hasMoreErrors = totalErrorRows > 5;
+      const message = hasMoreErrors
+        ? `Validation failed for ${totalErrorRows} rows. First errors - ${errorDetails}. Please fix the errors and try again.`
+        : `Validation failed. ${errorDetails}`;
+
+      throw new BadRequestException(message);
     }
 
     return validatedRows;

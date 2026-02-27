@@ -1,6 +1,10 @@
-import { InternalServerErrorException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
+import MockAdapter from 'axios-mock-adapter';
 
 import { MediaType } from 'src/entities';
 
@@ -28,21 +32,10 @@ const mockTmdbResponseMapperService = () => ({
   mapTvShow: jest.fn(),
 });
 
-const makeFetchResponse = (
-  ok: boolean,
-  data: unknown,
-  status = 200,
-): Response =>
-  ({
-    ok,
-    status,
-    json: jest.fn().mockResolvedValue(data),
-    text: jest.fn().mockResolvedValue(JSON.stringify(data)),
-  }) as unknown as Response;
-
 describe('TmdbService', () => {
   let service: TmdbService;
   let tmdbResponseMapperService: jest.Mocked<TmdbResponseMapperService>;
+  let axiosMock: MockAdapter;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -58,11 +51,14 @@ describe('TmdbService', () => {
 
     service = module.get(TmdbService);
     tmdbResponseMapperService = module.get(TmdbResponseMapperService);
+
+    // Отримуємо доступ до axios instance через приватне поле
+    axiosMock = new MockAdapter(service['http']);
   });
 
   afterEach(() => {
+    axiosMock.reset();
     jest.clearAllMocks();
-    jest.restoreAllMocks();
   });
 
   describe('constructor', () => {
@@ -101,9 +97,8 @@ describe('TmdbService', () => {
         totalPages: 1,
         totalResults: 0,
       };
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(true, rawData));
+
+      axiosMock.onGet('/discover/movie').reply(200, rawData);
       tmdbResponseMapperService.mapMoviesResponse.mockReturnValue(mappedData);
 
       const result = await service.discoverMovies({ page: 1 } as never);
@@ -114,18 +109,18 @@ describe('TmdbService', () => {
       expect(result).toBe(mappedData);
     });
 
-    it('should throw InternalServerErrorException if response is not ok', async () => {
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(false, {}, 500));
+    it('should throw InternalServerErrorException if response fails', async () => {
+      axiosMock.onGet('/discover/movie').reply(500, {
+        status_message: 'Internal Server Error',
+      });
 
       await expect(service.discoverMovies({} as never)).rejects.toThrow(
         InternalServerErrorException,
       );
     });
 
-    it('should throw InternalServerErrorException if fetch throws', async () => {
-      jest.spyOn(global, 'fetch').mockRejectedValue(new Error('Network error'));
+    it('should throw InternalServerErrorException on network error', async () => {
+      axiosMock.onGet('/discover/movie').networkError();
 
       await expect(service.discoverMovies({} as never)).rejects.toThrow(
         InternalServerErrorException,
@@ -137,9 +132,8 @@ describe('TmdbService', () => {
     it('should fetch and return mapped movie details', async () => {
       const rawData = { id: 1 };
       const mappedData = { id: 1, title: 'Movie' };
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(true, rawData));
+
+      axiosMock.onGet('/movie/1').reply(200, rawData);
       tmdbResponseMapperService.mapMovieDetails.mockReturnValue(
         mappedData as never,
       );
@@ -152,22 +146,31 @@ describe('TmdbService', () => {
       expect(result).toBe(mappedData);
     });
 
-    it('should throw InternalServerErrorException with NotFoundException message on 404', async () => {
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(
-          makeFetchResponse(false, { status_message: 'Movie not found' }, 404),
-        );
+    it('should throw NotFoundException on 404', async () => {
+      axiosMock.onGet('/movie/999').reply(404, {
+        status_message: 'Movie not found',
+      });
 
       await expect(service.movieDetails(999)).rejects.toThrow(
-        InternalServerErrorException,
+        NotFoundException,
+      );
+      await expect(service.movieDetails(999)).rejects.toThrow(
+        'Movie not found',
       );
     });
 
     it('should throw InternalServerErrorException on other errors', async () => {
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(false, {}, 500));
+      axiosMock.onGet('/movie/1').reply(500, {
+        status_message: 'Server error',
+      });
+
+      await expect(service.movieDetails(1)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+
+    it('should throw InternalServerErrorException on network error', async () => {
+      axiosMock.onGet('/movie/1').networkError();
 
       await expect(service.movieDetails(1)).rejects.toThrow(
         InternalServerErrorException,
@@ -179,12 +182,11 @@ describe('TmdbService', () => {
     it('should return mapped movie if movie_results is not empty', async () => {
       const rawMovie = { id: 1 };
       const mappedMovie = { id: 1, title: 'Movie' };
-      jest.spyOn(global, 'fetch').mockResolvedValue(
-        makeFetchResponse(true, {
-          movie_results: [rawMovie],
-          tv_results: [],
-        }),
-      );
+
+      axiosMock.onGet('/find/tt1234567').reply(200, {
+        movie_results: [rawMovie],
+        tv_results: [],
+      });
       tmdbResponseMapperService.mapMovie.mockReturnValue(mappedMovie as never);
 
       const result = await service.findMediaByImdbId('tt1234567');
@@ -196,12 +198,11 @@ describe('TmdbService', () => {
     it('should return mapped tv show if tv_results is not empty', async () => {
       const rawTvShow = { id: 2 };
       const mappedTvShow = { id: 2, name: 'Show' };
-      jest.spyOn(global, 'fetch').mockResolvedValue(
-        makeFetchResponse(true, {
-          movie_results: [],
-          tv_results: [rawTvShow],
-        }),
-      );
+
+      axiosMock.onGet('/find/tt1234567').reply(200, {
+        movie_results: [],
+        tv_results: [rawTvShow],
+      });
       tmdbResponseMapperService.mapTvShow.mockReturnValue(
         mappedTvShow as never,
       );
@@ -215,29 +216,26 @@ describe('TmdbService', () => {
     });
 
     it('should return null if no results found', async () => {
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(
-          makeFetchResponse(true, { movie_results: [], tv_results: [] }),
-        );
+      axiosMock.onGet('/find/tt1234567').reply(200, {
+        movie_results: [],
+        tv_results: [],
+      });
 
       const result = await service.findMediaByImdbId('tt1234567');
 
       expect(result).toBeNull();
     });
 
-    it('should return null if response is not ok', async () => {
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(false, {}, 500));
+    it('should return null if response fails', async () => {
+      axiosMock.onGet('/find/tt1234567').reply(500);
 
       const result = await service.findMediaByImdbId('tt1234567');
 
       expect(result).toBeNull();
     });
 
-    it('should return null if fetch throws', async () => {
-      jest.spyOn(global, 'fetch').mockRejectedValue(new Error('Network error'));
+    it('should return null if network error occurs', async () => {
+      axiosMock.onGet('/find/tt1234567').networkError();
 
       const result = await service.findMediaByImdbId('tt1234567');
 
@@ -249,9 +247,8 @@ describe('TmdbService', () => {
     it('should fetch and return mapped tv show details', async () => {
       const rawData = { id: 1 };
       const mappedData = { id: 1, name: 'Show' };
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(true, rawData));
+
+      axiosMock.onGet('/tv/1').reply(200, rawData);
       tmdbResponseMapperService.mapTvShowDetails.mockReturnValue(
         mappedData as never,
       );
@@ -264,14 +261,23 @@ describe('TmdbService', () => {
       expect(result).toBe(mappedData);
     });
 
-    it('should throw InternalServerErrorException on 404', async () => {
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(
-          makeFetchResponse(false, { status_message: 'Not found' }, 404),
-        );
+    it('should throw NotFoundException on 404', async () => {
+      axiosMock.onGet('/tv/999').reply(404, {
+        status_message: 'TV show not found',
+      });
 
       await expect(service.getTVShowDetails(999)).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(service.getTVShowDetails(999)).rejects.toThrow(
+        'TV show not found',
+      );
+    });
+
+    it('should throw InternalServerErrorException on other errors', async () => {
+      axiosMock.onGet('/tv/1').reply(500);
+
+      await expect(service.getTVShowDetails(1)).rejects.toThrow(
         InternalServerErrorException,
       );
     });
@@ -281,9 +287,8 @@ describe('TmdbService', () => {
     it('should fetch and return mapped credits', async () => {
       const rawCredits = { id: 1, cast: [], crew: [] };
       const mappedCredits = { id: 1, cast: [], crew: [] };
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(true, rawCredits));
+
+      axiosMock.onGet('/movie/1/credits').reply(200, rawCredits);
       tmdbResponseMapperService.mapCredits.mockReturnValue(mappedCredits);
 
       const result = await service.getMovieCredits(1);
@@ -294,18 +299,16 @@ describe('TmdbService', () => {
       expect(result).toBe(mappedCredits);
     });
 
-    it('should return null if response is not ok', async () => {
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(false, {}, 500));
+    it('should return null if response fails', async () => {
+      axiosMock.onGet('/movie/1/credits').reply(500);
 
       const result = await service.getMovieCredits(1);
 
       expect(result).toBeNull();
     });
 
-    it('should return null if fetch throws', async () => {
-      jest.spyOn(global, 'fetch').mockRejectedValue(new Error('Network error'));
+    it('should return null on network error', async () => {
+      axiosMock.onGet('/movie/1/credits').networkError();
 
       const result = await service.getMovieCredits(1);
 
@@ -317,9 +320,8 @@ describe('TmdbService', () => {
     it('should fetch and return mapped credits', async () => {
       const rawCredits = { id: 1, cast: [], crew: [] };
       const mappedCredits = { id: 1, cast: [], crew: [] };
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(true, rawCredits));
+
+      axiosMock.onGet('/tv/1/aggregate_credits').reply(200, rawCredits);
       tmdbResponseMapperService.mapCredits.mockReturnValue(mappedCredits);
 
       const result = await service.getTVShowCredits(1);
@@ -327,10 +329,16 @@ describe('TmdbService', () => {
       expect(result).toBe(mappedCredits);
     });
 
-    it('should return null if response is not ok', async () => {
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(false, {}, 500));
+    it('should return null if response fails', async () => {
+      axiosMock.onGet('/tv/1/aggregate_credits').reply(500);
+
+      const result = await service.getTVShowCredits(1);
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null on network error', async () => {
+      axiosMock.onGet('/tv/1/aggregate_credits').networkError();
 
       const result = await service.getTVShowCredits(1);
 
@@ -342,9 +350,8 @@ describe('TmdbService', () => {
     it('should fetch and return mapped person', async () => {
       const rawPerson = { id: 1, name: 'Actor' };
       const mappedPerson = { id: 1, name: 'Actor' };
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(makeFetchResponse(true, rawPerson));
+
+      axiosMock.onGet('/person/1').reply(200, rawPerson);
       tmdbResponseMapperService.mapPerson.mockReturnValue(
         mappedPerson as never,
       );
@@ -357,14 +364,19 @@ describe('TmdbService', () => {
       expect(result).toBe(mappedPerson);
     });
 
-    it('should throw InternalServerErrorException on 404', async () => {
-      jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue(
-          makeFetchResponse(false, { status_message: 'Not found' }, 404),
-        );
+    it('should throw NotFoundException on 404', async () => {
+      axiosMock.onGet('/person/999').reply(404, {
+        status_message: 'Person not found',
+      });
 
-      await expect(service.getPerson(999)).rejects.toThrow(
+      await expect(service.getPerson(999)).rejects.toThrow(NotFoundException);
+      await expect(service.getPerson(999)).rejects.toThrow('Person not found');
+    });
+
+    it('should throw InternalServerErrorException on other errors', async () => {
+      axiosMock.onGet('/person/1').reply(500);
+
+      await expect(service.getPerson(1)).rejects.toThrow(
         InternalServerErrorException,
       );
     });

@@ -107,8 +107,6 @@ export class MediaItemService {
             PersonRole.ACTOR,
           );
         }
-
-        await this.sleep(25);
       } else {
         await this.mediaItemRepository.save(mediaItem);
       }
@@ -127,9 +125,5 @@ export class MediaItemService {
     }
 
     return MediaType.MOVIE;
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

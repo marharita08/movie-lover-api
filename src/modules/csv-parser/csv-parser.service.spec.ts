@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { plainToClass } from 'class-transformer';
-import { validate } from 'class-validator';
+import { validate, ValidationError } from 'class-validator';
 import * as Papa from 'papaparse';
 
 import { CsvParserService } from './csv-parser.service';
@@ -52,6 +52,16 @@ describe('CsvParserService', () => {
         config.error(error);
       },
     );
+  };
+
+  const createValidationError = (
+    property: string,
+    constraints: Record<string, string>,
+  ): ValidationError => {
+    const error = new ValidationError();
+    error.property = property;
+    error.constraints = constraints;
+    return error;
   };
 
   describe('parse', () => {
@@ -176,39 +186,9 @@ describe('CsvParserService', () => {
         BadRequestException,
       );
 
-      await expect(service.parseAndValidate('', TestDto)).rejects.toMatchObject(
-        {
-          response: {
-            message: 'CSV file is empty',
-          },
-        },
+      await expect(service.parseAndValidate('', TestDto)).rejects.toThrow(
+        'CSV file is empty',
       );
-    });
-
-    it('should throw BadRequestException if first row fails validation', async () => {
-      const rows = [{ name: '', year: '2010' }];
-      mockPapaComplete(rows);
-
-      const dto = { name: '', year: '2010' };
-      mockedPlainToClass.mockReturnValue(dto as any);
-      mockedValidate.mockResolvedValue([
-        {
-          property: 'name',
-          constraints: { isNotEmpty: 'name should not be empty' },
-        } as any,
-      ]);
-
-      await expect(
-        service.parseAndValidate('name,year\n,2010', TestDto),
-      ).rejects.toThrow(BadRequestException);
-
-      await expect(
-        service.parseAndValidate('name,year\n,2010', TestDto),
-      ).rejects.toMatchObject({
-        response: {
-          message: 'Invalid CSV structure: name should not be empty',
-        },
-      });
     });
 
     it('should return validated rows when all rows are valid', async () => {
@@ -221,7 +201,6 @@ describe('CsvParserService', () => {
       const dto1 = { name: 'Inception', year: '2010' };
       const dto2 = { name: 'Interstellar', year: '2014' };
       mockedPlainToClass.mockReturnValueOnce(dto1 as any);
-      mockedPlainToClass.mockReturnValueOnce(dto1 as any);
       mockedPlainToClass.mockReturnValueOnce(dto2 as any);
       mockedValidate.mockResolvedValue([]);
 
@@ -231,10 +210,11 @@ describe('CsvParserService', () => {
       );
 
       expect(result).toHaveLength(2);
-      expect(mockedValidate).toHaveBeenCalledTimes(3); // first row check + 2 rows
+      expect(result).toEqual([dto1, dto2]);
+      expect(mockedValidate).toHaveBeenCalledTimes(2);
     });
 
-    it('should throw BadRequestException with row-specific errors when some rows fail validation', async () => {
+    it('should throw BadRequestException with compact message when some rows fail validation', async () => {
       const rows = [
         { name: 'Inception', year: '2010' },
         { name: '', year: '2014' },
@@ -242,44 +222,97 @@ describe('CsvParserService', () => {
       ];
       mockPapaComplete(rows);
 
-      const dto1 = { name: 'Inception', year: '2010' };
-      const dto2 = { name: '', year: '2014' };
-      const dto3 = { name: 'Dunkirk', year: '' };
-
-      mockedPlainToClass
-        .mockReturnValueOnce(dto1 as any) // first row check
-        .mockReturnValueOnce(dto1 as any) // row 1 validation
-        .mockReturnValueOnce(dto2 as any) // row 2 validation
-        .mockReturnValueOnce(dto3 as any); // row 3 validation
+      mockedPlainToClass.mockImplementation((_, obj) => obj as any);
 
       mockedValidate
-        .mockResolvedValueOnce([]) // first row check passes
-        .mockResolvedValueOnce([]) // row 1 valid
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([
-          {
-            property: 'name',
-            constraints: { isNotEmpty: 'name should not be empty' },
-          } as any,
-        ]) // row 2 invalid
+          createValidationError('name', {
+            isNotEmpty: 'name should not be empty',
+          }),
+        ])
         .mockResolvedValueOnce([
-          {
-            property: 'year',
-            constraints: { isNotEmpty: 'year should not be empty' },
-          } as any,
-        ]); // row 3 invalid
+          createValidationError('year', {
+            isNotEmpty: 'year should not be empty',
+          }),
+        ]);
+
+      await expect(
+        service.parseAndValidate('csv content', TestDto),
+      ).rejects.toThrow(
+        'Validation failed. Row 2: name should not be empty. Row 3: year should not be empty',
+      );
+    });
+
+    it('should show "first errors" message when more than 5 rows fail', async () => {
+      const rows = Array.from({ length: 10 }, (_, i) => ({
+        name: '',
+        year: `${2010 + i}`,
+      }));
+      mockPapaComplete(rows);
+
+      mockedPlainToClass.mockImplementation((_, obj) => obj as any);
+      mockedValidate.mockResolvedValue([
+        createValidationError('name', {
+          isNotEmpty: 'name should not be empty',
+        }),
+      ]);
+
+      await expect(
+        service.parseAndValidate('csv content', TestDto),
+      ).rejects.toThrow(/Validation failed for 10 rows\. First errors/);
+
+      await expect(
+        service.parseAndValidate('csv content', TestDto),
+      ).rejects.toThrow(/Please fix the errors and try again/);
+    });
+
+    it('should limit error collection to MAX_ERRORS_TO_REPORT (10)', async () => {
+      const rows = Array.from({ length: 20 }, (_, i) => ({
+        name: '',
+        year: `${2010 + i}`,
+      }));
+      mockPapaComplete(rows);
+
+      mockedPlainToClass.mockImplementation((_, obj) => obj as any);
+      mockedValidate.mockResolvedValue([
+        createValidationError('name', {
+          isNotEmpty: 'name should not be empty',
+        }),
+      ]);
 
       try {
         await service.parseAndValidate('csv content', TestDto);
-        fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
-        expect(error.response.message).toContain(
-          'Some rows contain invalid data',
-        );
-        expect(error.response.errors).toEqual([
-          { row: 2, errors: ['name should not be empty'] },
-          { row: 3, errors: ['year should not be empty'] },
-        ]);
+        expect(error.message).toContain('20 rows');
+      }
+    });
+
+    it('should show only first 5 errors in message even when 10 are collected', async () => {
+      const rows = Array.from({ length: 10 }, (_, i) => ({
+        name: '',
+        year: `${2010 + i}`,
+      }));
+      mockPapaComplete(rows);
+
+      mockedPlainToClass.mockImplementation((_, obj) => obj as any);
+      mockedValidate.mockResolvedValue([
+        createValidationError('name', {
+          isNotEmpty: 'name should not be empty',
+        }),
+      ]);
+
+      try {
+        await service.parseAndValidate('csv content', TestDto);
+      } catch (error) {
+        const message = error.message;
+        expect(message).toMatch(/Row 1:/);
+        expect(message).toMatch(/Row 2:/);
+        expect(message).toMatch(/Row 3:/);
+        expect(message).toMatch(/Row 4:/);
+        expect(message).toMatch(/Row 5:/);
+        expect(message).not.toMatch(/Row 6:/);
       }
     });
 
@@ -310,26 +343,70 @@ describe('CsvParserService', () => {
       const dto = { name: 'X', year: '2010' };
       mockedPlainToClass.mockReturnValue(dto as any);
       mockedValidate.mockResolvedValue([
-        {
-          property: 'name',
-          constraints: {
-            minLength: 'name must be at least 3 characters',
-            maxLength: 'name must be at most 100 characters',
-          },
-        } as any,
+        createValidationError('name', {
+          minLength: 'name must be at least 3 characters',
+          maxLength: 'name must be at most 100 characters',
+        }),
       ]);
+
+      await expect(
+        service.parseAndValidate('csv content', TestDto),
+      ).rejects.toThrow('name must be at least 3 characters');
+    });
+
+    it('should only show first error from each row in the message', async () => {
+      const rows = [{ name: 'X', year: '2010' }];
+      mockPapaComplete(rows);
+
+      const dto = { name: 'X', year: '2010' };
+      mockedPlainToClass.mockReturnValue(dto as any);
+      mockedValidate.mockResolvedValue([
+        createValidationError('name', {
+          minLength: 'name must be at least 3 characters',
+          maxLength: 'name must be at most 100 characters',
+        }),
+      ]);
+
+      try {
+        await service.parseAndValidate('csv content', TestDto);
+      } catch (error) {
+        expect(error.message).toMatch(
+          /Row 1: name must be at least 3 characters/,
+        );
+        expect(error.message).not.toMatch(
+          /name must be at most 100 characters/,
+        );
+      }
+    });
+
+    it('should return all valid rows even when some rows are invalid', async () => {
+      const rows = [
+        { name: 'Inception', year: '2010' },
+        { name: '', year: '2014' },
+        { name: 'Dunkirk', year: '2017' },
+      ];
+      mockPapaComplete(rows);
+
+      mockedPlainToClass.mockImplementation((_, obj) => obj as any);
+
+      mockedValidate
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          createValidationError('name', {
+            isNotEmpty: 'name should not be empty',
+          }),
+        ])
+        .mockResolvedValueOnce([]);
 
       try {
         await service.parseAndValidate('csv content', TestDto);
         fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
-        expect(error.response.message).toContain(
-          'name must be at least 3 characters',
-        );
-        expect(error.response.message).toContain(
-          'name must be at most 100 characters',
-        );
+        expect(error.message).toContain('Validation failed. Row 2:');
+        expect(error.message).toContain('name should not be empty');
+        expect(error.message).not.toContain('Row 1:');
+        expect(error.message).not.toContain('Row 3:');
       }
     });
   });

@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -18,7 +22,9 @@ export class AccessTokenStrategy extends PassportStrategy(Strategy, 'jwt') {
     const jwtSecret = configService.get<string>('JWT_SECRET');
 
     if (!jwtSecret) {
-      throw new Error('JWT secret is missing in environment');
+      throw new InternalServerErrorException(
+        'JWT secret is missing in environment',
+      );
     }
 
     super({
