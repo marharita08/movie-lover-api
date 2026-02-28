@@ -144,10 +144,10 @@ describe('PersonService', () => {
         'person',
       );
       expect(qb.leftJoin).toHaveBeenCalledWith(
-        'person.mediaPeople', // ✅ Виправлено
-        'mediaPerson', // ✅ Виправлено
+        'person.mediaPeople',
+        'mediaPerson',
       );
-      expect(qb.where).toHaveBeenCalledWith('mediaPerson.id IS NULL'); // ✅ Виправлено
+      expect(qb.where).toHaveBeenCalledWith('mediaPerson.id IS NULL');
       expect(qb.getMany).toHaveBeenCalled();
       expect(personRepository.delete).toHaveBeenCalledWith([
         'orphan-1',
