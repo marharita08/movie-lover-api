@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { MediaItem, MediaType, PersonRole } from 'src/entities';
 import { MediaPersonService } from 'src/modules/media-person/media-person.service';
@@ -19,6 +20,133 @@ export class MediaItemService {
     private readonly mediaPersonService: MediaPersonService,
   ) {}
 
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  async updateActiveMedia() {
+    this.logger.log('Starting daily update of active media items');
+
+    try {
+      await this.updateActiveTVShows();
+      await this.updateActiveMovies();
+
+      this.logger.log('Completed daily update of active media items');
+    } catch (error) {
+      this.logger.error('Error in updateActiveMedia cron job:', error);
+    }
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  async cleanupOrphanedMediaItems() {
+    this.logger.log('Starting cleanup of orphaned media items');
+
+    try {
+      const orphanedMediaItems = await this.mediaItemRepository
+        .createQueryBuilder('mediaItem')
+        .leftJoin('mediaItem.listMediaItems', 'listMediaItem')
+        .where('listMediaItem.id IS NULL')
+        .getMany();
+
+      this.logger.log(
+        `Found ${orphanedMediaItems.length} orphaned media items to delete`,
+      );
+
+      if (orphanedMediaItems.length > 0) {
+        const orphanedIds = orphanedMediaItems.map((item) => item.id);
+
+        await this.mediaItemRepository.delete(orphanedIds);
+
+        this.logger.log(
+          `Successfully deleted ${orphanedMediaItems.length} orphaned media items`,
+        );
+      }
+
+      this.logger.log('Completed cleanup of orphaned media items');
+    } catch (error) {
+      this.logger.error('Error in cleanupOrphanedMediaItems cron job:', error);
+    }
+  }
+
+  private async updateActiveTVShows() {
+    this.logger.log('Updating active TV shows');
+
+    const activeTVShows = await this.mediaItemRepository.find({
+      where: {
+        type: MediaType.TV,
+        status: In(['Returning Series', 'In Production', 'Planned']),
+      },
+    });
+
+    this.logger.log(`Found ${activeTVShows.length} active TV shows to update`);
+
+    for (const tvShow of activeTVShows) {
+      try {
+        if (!tvShow.tmdbId) {
+          this.logger.warn(`TV show ${tvShow.id} has no TMDB ID, skipping`);
+          continue;
+        }
+
+        const tvShowDetails = await this.tmdbService.getTVShowDetails(
+          tvShow.tmdbId,
+        );
+
+        tvShow.status = tvShowDetails.status;
+        tvShow.numberOfEpisodes = tvShowDetails.numberOfEpisodes;
+        tvShow.nextEpisodeAirDate = tvShowDetails.nextEpisodeToAir?.airDate
+          ? new Date(tvShowDetails.nextEpisodeToAir.airDate)
+          : null;
+        tvShow.lastSyncAt = new Date();
+
+        await this.mediaItemRepository.save(tvShow);
+
+        this.logger.log(
+          `Updated TV show ${tvShow.title} (ID: ${tvShow.id}) - Status: ${tvShow.status}, Episodes: ${tvShow.numberOfEpisodes}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error updating TV show ${tvShow.id} (${tvShow.title}):`,
+          error,
+        );
+      }
+    }
+  }
+
+  private async updateActiveMovies() {
+    this.logger.log('Updating active movies');
+
+    const activeMovies = await this.mediaItemRepository.find({
+      where: {
+        type: MediaType.MOVIE,
+        status: In(['Rumored', 'Planned', 'In Production', 'Post Production']),
+      },
+    });
+
+    this.logger.log(`Found ${activeMovies.length} active movies to update`);
+
+    for (const movie of activeMovies) {
+      try {
+        if (!movie.tmdbId) {
+          this.logger.warn(`Movie ${movie.id} has no TMDB ID, skipping`);
+          continue;
+        }
+
+        const movieDetails = await this.tmdbService.movieDetails(movie.tmdbId);
+
+        movie.status = movieDetails.status;
+        movie.lastSyncAt = new Date();
+
+        await this.mediaItemRepository.save(movie);
+
+        this.logger.log(
+          `Updated movie ${movie.title} (ID: ${movie.id}) - Status: ${movie.status}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error updating movie ${movie.id} (${movie.title}):`,
+          error,
+        );
+      }
+    }
+  }
+
   async getOrCreate(row: IMDBRow) {
     let mediaItem = await this.mediaItemRepository.findOne({
       where: { imdbId: row.Const },
@@ -33,6 +161,7 @@ export class MediaItemService {
         year: row.Year ? parseInt(row.Year) : null,
         imdbRating: row['IMDb Rating'] ? parseFloat(row['IMDb Rating']) : null,
         runtime: row['Runtime (mins)'] ? parseInt(row['Runtime (mins)']) : null,
+        lastSyncAt: new Date(),
       });
 
       const tmdbData = await this.tmdbService.findMediaByImdbId(row.Const);

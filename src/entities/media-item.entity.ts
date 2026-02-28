@@ -60,6 +60,9 @@ export class MediaItem extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   status: string | null;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  lastSyncAt: Date | null;
+
   @OneToMany(() => ListMediaItem, (listMediaItem) => listMediaItem.mediaItem)
   listMediaItems: ListMediaItem[];
 

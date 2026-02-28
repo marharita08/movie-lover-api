@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DeleteResult, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { Person } from 'src/entities';
 
@@ -17,6 +17,7 @@ const mockInsertQueryBuilder = {
 const mockPersonRepository = () => ({
   createQueryBuilder: jest.fn().mockReturnValue(mockInsertQueryBuilder),
   findOne: jest.fn(),
+  delete: jest.fn(),
 });
 
 const makePersonDto = (overrides = {}) => ({
@@ -34,6 +35,21 @@ const makePerson = (overrides: Partial<Person> = {}): Person =>
     profilePath: '/profile.jpg',
     ...overrides,
   }) as Person;
+
+type MockQueryBuilder = {
+  leftJoin: jest.Mock;
+  where: jest.Mock;
+  getMany: jest.Mock;
+};
+
+const mockQueryBuilder = (): MockQueryBuilder => {
+  const qb: MockQueryBuilder = {
+    leftJoin: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    getMany: jest.fn().mockResolvedValue([]),
+  };
+  return qb;
+};
 
 describe('PersonService', () => {
   let service: PersonService;
@@ -100,6 +116,106 @@ describe('PersonService', () => {
         expect.objectContaining({ profilePath: null }),
       );
       expect(result).toBe(person);
+    });
+  });
+
+  describe('cleanupOrphanedMediaItems', () => {
+    it('should find and delete orphaned media items', async () => {
+      const orphan1 = makePerson({
+        id: 'orphan-1',
+        name: 'Orphaned Person 1',
+      });
+      const orphan2 = makePerson({
+        id: 'orphan-2',
+        name: 'Orphaned Person 2',
+      });
+
+      const qb = mockQueryBuilder();
+      qb.getMany.mockResolvedValue([orphan1, orphan2]);
+      personRepository.createQueryBuilder.mockReturnValue(
+        qb as unknown as SelectQueryBuilder<Person>,
+      );
+      const deleteResult: DeleteResult = { affected: 2, raw: [] };
+      personRepository.delete.mockResolvedValue(deleteResult);
+
+      await service.cleanupOrphanedPeople();
+
+      expect(personRepository.createQueryBuilder).toHaveBeenCalledWith(
+        'person',
+      );
+      expect(qb.leftJoin).toHaveBeenCalledWith(
+        'person.mediaPeople', // ✅ Виправлено
+        'mediaPerson', // ✅ Виправлено
+      );
+      expect(qb.where).toHaveBeenCalledWith('mediaPerson.id IS NULL'); // ✅ Виправлено
+      expect(qb.getMany).toHaveBeenCalled();
+      expect(personRepository.delete).toHaveBeenCalledWith([
+        'orphan-1',
+        'orphan-2',
+      ]);
+    });
+
+    it('should not delete anything when no orphaned items found', async () => {
+      const qb = mockQueryBuilder();
+      qb.getMany.mockResolvedValue([]);
+      personRepository.createQueryBuilder.mockReturnValue(
+        qb as unknown as SelectQueryBuilder<Person>,
+      );
+
+      await service.cleanupOrphanedPeople();
+
+      expect(qb.getMany).toHaveBeenCalled();
+      expect(personRepository.delete).not.toHaveBeenCalled();
+    });
+
+    it('should handle errors gracefully', async () => {
+      const qb = mockQueryBuilder();
+      qb.getMany.mockRejectedValue(new Error('Database error'));
+      personRepository.createQueryBuilder.mockReturnValue(
+        qb as unknown as SelectQueryBuilder<Person>,
+      );
+
+      await expect(service.cleanupOrphanedPeople()).resolves.not.toThrow();
+
+      expect(personRepository.delete).not.toHaveBeenCalled();
+    });
+
+    it('should handle deletion errors', async () => {
+      const orphan = makePerson({
+        id: 'orphan-1',
+        name: 'Orphaned Person',
+      });
+
+      const qb = mockQueryBuilder();
+      qb.getMany.mockResolvedValue([orphan]);
+      personRepository.createQueryBuilder.mockReturnValue(
+        qb as unknown as SelectQueryBuilder<Person>,
+      );
+      personRepository.delete.mockRejectedValue(new Error('Deletion failed'));
+
+      await expect(service.cleanupOrphanedPeople()).resolves.not.toThrow();
+    });
+
+    it('should log the number of orphaned items found', async () => {
+      const orphan1 = makePerson({ id: 'orphan-1' });
+      const orphan2 = makePerson({ id: 'orphan-2' });
+      const orphan3 = makePerson({ id: 'orphan-3' });
+
+      const qb = mockQueryBuilder();
+      qb.getMany.mockResolvedValue([orphan1, orphan2, orphan3]);
+      personRepository.createQueryBuilder.mockReturnValue(
+        qb as unknown as SelectQueryBuilder<Person>,
+      );
+      const deleteResult: DeleteResult = { affected: 3, raw: [] };
+      personRepository.delete.mockResolvedValue(deleteResult);
+
+      await service.cleanupOrphanedPeople();
+
+      expect(personRepository.delete).toHaveBeenCalledWith([
+        'orphan-1',
+        'orphan-2',
+        'orphan-3',
+      ]);
     });
   });
 });
