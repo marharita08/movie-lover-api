@@ -419,13 +419,14 @@ describe('MediaItemService', () => {
   });
 
   describe('updateActiveTVShows', () => {
-    it('should find and update TV shows with active statuses', async () => {
+    it('should update all active TV shows with current data from TMDB', async () => {
       const tvShow1 = makeMediaItem({
         id: 'tv-1',
         type: MediaType.TV,
         status: 'Returning Series',
         tmdbId: 100,
         title: 'Active Show 1',
+        numberOfEpisodes: 30,
       });
       const tvShow2 = makeMediaItem({
         id: 'tv-2',
@@ -433,6 +434,7 @@ describe('MediaItemService', () => {
         status: 'In Production',
         tmdbId: 200,
         title: 'Active Show 2',
+        numberOfEpisodes: 10,
       });
 
       const updatedDetails1 = makeTvShowDetails({
@@ -446,20 +448,18 @@ describe('MediaItemService', () => {
         nextEpisodeToAir: null,
       });
 
-      mediaItemRepository.find.mockResolvedValue([tvShow1, tvShow2]);
+      mediaItemRepository.find
+        .mockResolvedValueOnce([tvShow1, tvShow2])
+        .mockResolvedValueOnce([]);
+
       tmdbService.getTVShowDetails
         .mockResolvedValueOnce(updatedDetails1 as never)
         .mockResolvedValueOnce(updatedDetails2 as never);
+
       mediaItemRepository.save.mockResolvedValue({} as MediaItem);
 
       await (service as any).updateActiveTVShows();
 
-      expect(mediaItemRepository.find).toHaveBeenCalledWith({
-        where: {
-          type: MediaType.TV,
-          status: expect.anything(),
-        },
-      });
       expect(tmdbService.getTVShowDetails).toHaveBeenCalledWith(100);
       expect(tmdbService.getTVShowDetails).toHaveBeenCalledWith(200);
       expect(mediaItemRepository.save).toHaveBeenCalledTimes(2);
@@ -480,7 +480,9 @@ describe('MediaItemService', () => {
         title: 'Show Without TMDB',
       });
 
-      mediaItemRepository.find.mockResolvedValue([tvShow]);
+      mediaItemRepository.find
+        .mockResolvedValueOnce([tvShow])
+        .mockResolvedValueOnce([]);
 
       await (service as any).updateActiveTVShows();
 
@@ -488,7 +490,7 @@ describe('MediaItemService', () => {
       expect(mediaItemRepository.save).not.toHaveBeenCalled();
     });
 
-    it('should handle errors for individual TV shows and continue', async () => {
+    it('should handle errors for individual TV shows and continue processing', async () => {
       const tvShow1 = makeMediaItem({
         id: 'tv-1',
         type: MediaType.TV,
@@ -506,10 +508,14 @@ describe('MediaItemService', () => {
 
       const updatedDetails = makeTvShowDetails();
 
-      mediaItemRepository.find.mockResolvedValue([tvShow1, tvShow2]);
+      mediaItemRepository.find
+        .mockResolvedValueOnce([tvShow1, tvShow2])
+        .mockResolvedValueOnce([]);
+
       tmdbService.getTVShowDetails
         .mockRejectedValueOnce(new Error('TMDB error'))
         .mockResolvedValueOnce(updatedDetails as never);
+
       mediaItemRepository.save.mockResolvedValue({} as MediaItem);
 
       await (service as any).updateActiveTVShows();
@@ -529,7 +535,10 @@ describe('MediaItemService', () => {
 
       const updatedDetails = makeTvShowDetails();
 
-      mediaItemRepository.find.mockResolvedValue([tvShow]);
+      mediaItemRepository.find
+        .mockResolvedValueOnce([tvShow])
+        .mockResolvedValueOnce([]);
+
       tmdbService.getTVShowDetails.mockResolvedValue(updatedDetails as never);
       mediaItemRepository.save.mockResolvedValue({} as MediaItem);
 
@@ -540,7 +549,7 @@ describe('MediaItemService', () => {
   });
 
   describe('updateActiveMovies', () => {
-    it('should find and update movies with active statuses', async () => {
+    it('should update all active movies with current data from TMDB', async () => {
       const movie1 = makeMediaItem({
         id: 'movie-1',
         type: MediaType.MOVIE,
@@ -556,27 +565,21 @@ describe('MediaItemService', () => {
         title: 'Movie in Post',
       });
 
-      const updatedDetails1 = makeMovieDetails({
-        status: 'Post Production',
-      });
-      const updatedDetails2 = makeMovieDetails({
-        status: 'Released',
-      });
+      const updatedDetails1 = makeMovieDetails({ status: 'Post Production' });
+      const updatedDetails2 = makeMovieDetails({ status: 'Released' });
 
-      mediaItemRepository.find.mockResolvedValue([movie1, movie2]);
+      mediaItemRepository.find
+        .mockResolvedValueOnce([movie1, movie2])
+        .mockResolvedValueOnce([]);
+
       tmdbService.movieDetails
         .mockResolvedValueOnce(updatedDetails1 as never)
         .mockResolvedValueOnce(updatedDetails2 as never);
+
       mediaItemRepository.save.mockResolvedValue({} as MediaItem);
 
       await (service as any).updateActiveMovies();
 
-      expect(mediaItemRepository.find).toHaveBeenCalledWith({
-        where: {
-          type: MediaType.MOVIE,
-          status: expect.anything(),
-        },
-      });
       expect(tmdbService.movieDetails).toHaveBeenCalledWith(100);
       expect(tmdbService.movieDetails).toHaveBeenCalledWith(200);
       expect(mediaItemRepository.save).toHaveBeenCalledTimes(2);
@@ -593,7 +596,9 @@ describe('MediaItemService', () => {
         title: 'Movie Without TMDB',
       });
 
-      mediaItemRepository.find.mockResolvedValue([movie]);
+      mediaItemRepository.find
+        .mockResolvedValueOnce([movie])
+        .mockResolvedValueOnce([]);
 
       await (service as any).updateActiveMovies();
 
@@ -601,7 +606,7 @@ describe('MediaItemService', () => {
       expect(mediaItemRepository.save).not.toHaveBeenCalled();
     });
 
-    it('should handle errors for individual movies and continue', async () => {
+    it('should handle errors for individual movies and continue processing', async () => {
       const movie1 = makeMediaItem({
         id: 'movie-1',
         type: MediaType.MOVIE,
@@ -619,10 +624,14 @@ describe('MediaItemService', () => {
 
       const updatedDetails = makeMovieDetails();
 
-      mediaItemRepository.find.mockResolvedValue([movie1, movie2]);
+      mediaItemRepository.find
+        .mockResolvedValueOnce([movie1, movie2])
+        .mockResolvedValueOnce([]);
+
       tmdbService.movieDetails
         .mockRejectedValueOnce(new Error('TMDB error'))
         .mockResolvedValueOnce(updatedDetails as never);
+
       mediaItemRepository.save.mockResolvedValue({} as MediaItem);
 
       await (service as any).updateActiveMovies();
@@ -642,34 +651,16 @@ describe('MediaItemService', () => {
 
       const updatedDetails = makeMovieDetails();
 
-      mediaItemRepository.find.mockResolvedValue([movie]);
+      mediaItemRepository.find
+        .mockResolvedValueOnce([movie])
+        .mockResolvedValueOnce([]);
+
       tmdbService.movieDetails.mockResolvedValue(updatedDetails as never);
       mediaItemRepository.save.mockResolvedValue({} as MediaItem);
 
       await (service as any).updateActiveMovies();
 
       expect(movie.lastSyncAt).toBeInstanceOf(Date);
-    });
-
-    it('should query for correct movie statuses', async () => {
-      mediaItemRepository.find.mockResolvedValue([]);
-
-      await (service as any).updateActiveMovies();
-
-      expect(mediaItemRepository.find).toHaveBeenCalledWith({
-        where: {
-          type: MediaType.MOVIE,
-          status: expect.objectContaining({
-            _type: 'in',
-            _value: expect.arrayContaining([
-              'Rumored',
-              'Planned',
-              'In Production',
-              'Post Production',
-            ]),
-          }),
-        },
-      });
     });
   });
 

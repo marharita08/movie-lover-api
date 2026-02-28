@@ -68,83 +68,144 @@ export class MediaItemService {
   private async updateActiveTVShows() {
     this.logger.log('Updating active TV shows');
 
-    const activeTVShows = await this.mediaItemRepository.find({
-      where: {
-        type: MediaType.TV,
-        status: In(['Returning Series', 'In Production', 'Planned']),
-      },
-    });
+    const BATCH_SIZE = 20;
+    let offset = 0;
+    let totalProcessed = 0;
+    let hasMore = true;
 
-    this.logger.log(`Found ${activeTVShows.length} active TV shows to update`);
+    while (hasMore) {
+      const activeTVShows = await this.mediaItemRepository.find({
+        where: {
+          type: MediaType.TV,
+          status: In(['Returning Series', 'In Production', 'Planned']),
+        },
+        take: BATCH_SIZE,
+        skip: offset,
+      });
 
-    for (const tvShow of activeTVShows) {
-      try {
-        if (!tvShow.tmdbId) {
-          this.logger.warn(`TV show ${tvShow.id} has no TMDB ID, skipping`);
-          continue;
+      if (activeTVShows.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      this.logger.log(
+        `Processing batch: ${activeTVShows.length} TV shows (offset: ${offset})`,
+      );
+
+      const updatePromises = activeTVShows.map(async (tvShow) => {
+        try {
+          if (!tvShow.tmdbId) {
+            this.logger.warn(`TV show ${tvShow.id} has no TMDB ID, skipping`);
+            return;
+          }
+
+          const tvShowDetails = await this.tmdbService.getTVShowDetails(
+            tvShow.tmdbId,
+          );
+
+          tvShow.status = tvShowDetails.status;
+          tvShow.numberOfEpisodes = tvShowDetails.numberOfEpisodes;
+          tvShow.nextEpisodeAirDate = tvShowDetails.nextEpisodeToAir?.airDate
+            ? new Date(tvShowDetails.nextEpisodeToAir.airDate)
+            : null;
+          tvShow.lastSyncAt = new Date();
+
+          await this.mediaItemRepository.save(tvShow);
+
+          this.logger.log(
+            `Updated TV show ${tvShow.title} (ID: ${tvShow.id}) - Status: ${tvShow.status}, Episodes: ${tvShow.numberOfEpisodes}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Error updating TV show ${tvShow.id} (${tvShow.title}):`,
+            error,
+          );
         }
+      });
 
-        const tvShowDetails = await this.tmdbService.getTVShowDetails(
-          tvShow.tmdbId,
-        );
+      await Promise.all(updatePromises);
 
-        tvShow.status = tvShowDetails.status;
-        tvShow.numberOfEpisodes = tvShowDetails.numberOfEpisodes;
-        tvShow.nextEpisodeAirDate = tvShowDetails.nextEpisodeToAir?.airDate
-          ? new Date(tvShowDetails.nextEpisodeToAir.airDate)
-          : null;
-        tvShow.lastSyncAt = new Date();
+      totalProcessed += activeTVShows.length;
+      offset += BATCH_SIZE;
 
-        await this.mediaItemRepository.save(tvShow);
-
-        this.logger.log(
-          `Updated TV show ${tvShow.title} (ID: ${tvShow.id}) - Status: ${tvShow.status}, Episodes: ${tvShow.numberOfEpisodes}`,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Error updating TV show ${tvShow.id} (${tvShow.title}):`,
-          error,
-        );
+      if (activeTVShows.length < BATCH_SIZE) {
+        hasMore = false;
       }
     }
+
+    this.logger.log(`Completed updating ${totalProcessed} TV shows`);
   }
 
   private async updateActiveMovies() {
     this.logger.log('Updating active movies');
 
-    const activeMovies = await this.mediaItemRepository.find({
-      where: {
-        type: MediaType.MOVIE,
-        status: In(['Rumored', 'Planned', 'In Production', 'Post Production']),
-      },
-    });
+    const BATCH_SIZE = 20;
+    let offset = 0;
+    let totalProcessed = 0;
+    let hasMore = true;
 
-    this.logger.log(`Found ${activeMovies.length} active movies to update`);
+    while (hasMore) {
+      const activeMovies = await this.mediaItemRepository.find({
+        where: {
+          type: MediaType.MOVIE,
+          status: In([
+            'Rumored',
+            'Planned',
+            'In Production',
+            'Post Production',
+          ]),
+        },
+        take: BATCH_SIZE,
+        skip: offset,
+      });
 
-    for (const movie of activeMovies) {
-      try {
-        if (!movie.tmdbId) {
-          this.logger.warn(`Movie ${movie.id} has no TMDB ID, skipping`);
-          continue;
+      if (activeMovies.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      this.logger.log(
+        `Processing batch: ${activeMovies.length} movies (offset: ${offset})`,
+      );
+
+      const updatePromises = activeMovies.map(async (movie) => {
+        try {
+          if (!movie.tmdbId) {
+            this.logger.warn(`Movie ${movie.id} has no TMDB ID, skipping`);
+            return;
+          }
+
+          const movieDetails = await this.tmdbService.movieDetails(
+            movie.tmdbId,
+          );
+
+          movie.status = movieDetails.status;
+          movie.lastSyncAt = new Date();
+
+          await this.mediaItemRepository.save(movie);
+
+          this.logger.log(
+            `Updated movie ${movie.title} (ID: ${movie.id}) - Status: ${movie.status}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Error updating movie ${movie.id} (${movie.title}):`,
+            error,
+          );
         }
+      });
 
-        const movieDetails = await this.tmdbService.movieDetails(movie.tmdbId);
+      await Promise.all(updatePromises);
 
-        movie.status = movieDetails.status;
-        movie.lastSyncAt = new Date();
+      totalProcessed += activeMovies.length;
+      offset += BATCH_SIZE;
 
-        await this.mediaItemRepository.save(movie);
-
-        this.logger.log(
-          `Updated movie ${movie.title} (ID: ${movie.id}) - Status: ${movie.status}`,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Error updating movie ${movie.id} (${movie.title}):`,
-          error,
-        );
+      if (activeMovies.length < BATCH_SIZE) {
+        hasMore = false;
       }
     }
+
+    this.logger.log(`Completed updating ${totalProcessed} movies`);
   }
 
   async getOrCreate(row: IMDBRow) {
