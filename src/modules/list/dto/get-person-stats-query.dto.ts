@@ -7,6 +7,7 @@ import {
   IsPositive,
   IsString,
   Max,
+  MaxLength,
 } from 'class-validator';
 
 import { MAX_LIMIT } from 'src/const/max-limit';
@@ -19,6 +20,7 @@ export class GetPersonStatsQuery {
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   search?: string;
 
   @IsOptional()
