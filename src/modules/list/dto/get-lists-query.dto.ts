@@ -1,11 +1,19 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsPositive, IsString, Max } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsPositive,
+  IsString,
+  Max,
+  MaxLength,
+} from 'class-validator';
 
 import { MAX_LIMIT } from 'src/const/max-limit';
 
 export class GetListsQueryDto {
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   name?: string;
 
   @IsOptional()
