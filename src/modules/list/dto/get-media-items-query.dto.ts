@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsPositive, Max } from 'class-validator';
+import { IsInt, IsOptional, IsPositive, IsString, Max } from 'class-validator';
 
 import { MAX_LIMIT } from 'src/const/max-limit';
 
@@ -16,4 +16,8 @@ export class GetMediaItemsQueryDto {
   @IsPositive()
   @Max(MAX_LIMIT)
   limit?: number = 10;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

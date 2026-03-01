@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsPositive,
+  IsString,
   Max,
 } from 'class-validator';
 
@@ -15,6 +16,10 @@ export class GetPersonStatsQuery {
   @IsNotEmpty()
   @IsEnum(PersonRole)
   role: PersonRole;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 
   @IsOptional()
   @Type(() => Number)

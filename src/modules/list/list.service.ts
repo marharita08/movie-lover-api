@@ -187,20 +187,43 @@ export class ListService {
     const list = await this.findOne(listId, userId);
     this.checkListStatus(list);
 
-    const { role, page = 1, limit = 10 } = query;
+    const { role, search, page = 1, limit = 10 } = query;
 
-    const totalCount: { count: string } | undefined =
-      await this.mediaPersonsRepository
-        .createQueryBuilder('mp')
-        .innerJoin('mp.person', 'person')
-        .innerJoin('mp.mediaItem', 'media')
-        .innerJoin('media.listMediaItems', 'lmi')
-        .select('COUNT(DISTINCT person.id)', 'count')
-        .where('lmi.listId = :listId', { listId })
-        .andWhere('mp.role = :role', { role })
-        .getRawOne();
+    let baseQueryBuilder = this.mediaPersonsRepository
+      .createQueryBuilder('mp')
+      .innerJoin('mp.person', 'person')
+      .innerJoin('mp.mediaItem', 'media')
+      .innerJoin('media.listMediaItems', 'lmi')
+      .where('lmi.listId = :listId', { listId })
+      .andWhere('mp.role = :role', { role });
 
-    const total = totalCount ? parseInt(totalCount.count) : 0;
+    if (search) {
+      const personIdsSubQuery = this.mediaPersonsRepository
+        .createQueryBuilder('mp_search')
+        .innerJoin('mp_search.person', 'person_search')
+        .innerJoin('mp_search.mediaItem', 'media_search')
+        .innerJoin('media_search.listMediaItems', 'lmi_search')
+        .select('DISTINCT person_search.id')
+        .where('lmi_search.listId = :listId')
+        .andWhere('mp_search.role = :role')
+        .andWhere(
+          '(LOWER(person_search.name) LIKE LOWER(:search) OR LOWER(media_search.title) LIKE LOWER(:search))',
+        );
+
+      baseQueryBuilder = baseQueryBuilder
+        .andWhere(`person.id IN (${personIdsSubQuery.getQuery()})`)
+        .setParameter('search', `%${search}%`);
+    }
+
+    const subQuery = baseQueryBuilder
+      .select('person.tmdbId', 'id')
+      .addSelect('person.name', 'name')
+      .addSelect('person.profilePath', 'profilePath')
+      .addSelect('COUNT(DISTINCT media.id)', 'itemCount')
+      .addSelect('ARRAY_AGG(DISTINCT media.title)', 'titles')
+      .groupBy('person.tmdbId')
+      .addGroupBy('person.name')
+      .addGroupBy('person.profilePath');
 
     const result: {
       id: string;
@@ -208,26 +231,20 @@ export class ListService {
       profilePath: string;
       itemCount: string;
       titles: string[];
-    }[] = await this.mediaPersonsRepository
-      .createQueryBuilder('mp')
-      .innerJoin('mp.person', 'person')
-      .innerJoin('mp.mediaItem', 'media')
-      .innerJoin('media.listMediaItems', 'lmi')
-      .select('person.tmdbId', 'id')
-      .addSelect('person.name', 'name')
-      .addSelect('person.profilePath', 'profilePath')
-      .addSelect('COUNT(DISTINCT media.id)', 'itemCount')
-      .addSelect('ARRAY_AGG(DISTINCT media.title)', 'titles')
-      .where('lmi.listId = :listId', { listId })
-      .andWhere('mp.role = :role', { role })
-      .groupBy('person.tmdbId')
-      .addGroupBy('person.name')
-      .addGroupBy('person.profilePath')
-      .orderBy('COUNT(DISTINCT media.id)', 'DESC')
-      .addOrderBy('person.name', 'ASC')
+      totalCount: string;
+    }[] = await this.mediaPersonsRepository.manager
+      .createQueryBuilder()
+      .select('sub.*')
+      .addSelect('COUNT(*) OVER()', 'totalCount')
+      .from(`(${subQuery.getQuery()})`, 'sub')
+      .setParameters(subQuery.getParameters())
+      .orderBy('sub."itemCount"', 'DESC')
+      .addOrderBy('sub.name', 'ASC')
       .limit(limit)
       .offset((page - 1) * limit)
       .getRawMany();
+
+    const total = result.length > 0 ? parseInt(result[0].totalCount) : 0;
 
     return {
       results: result.map((row) => ({
@@ -251,25 +268,9 @@ export class ListService {
     const list = await this.findOne(id, userId);
     this.checkListStatus(list);
 
-    const { page = 1, limit = 10 } = query;
+    const { page = 1, limit = 10, search } = query;
 
-    const totalCount: { count: string } | undefined =
-      await this.listMediaItemsRepository
-        .createQueryBuilder('lmi')
-        .innerJoin('lmi.mediaItem', 'media')
-        .select('COUNT(DISTINCT media.id)', 'count')
-        .where('lmi.listId = :listId', { listId: id })
-        .getRawOne();
-
-    const total = totalCount ? parseInt(totalCount.count) : 0;
-
-    const result: {
-      id: number;
-      title: string;
-      posterPath: string;
-      type: MediaType;
-      imdbId: string;
-    }[] = await this.listMediaItemsRepository
+    let subQuery = this.listMediaItemsRepository
       .createQueryBuilder('lmi')
       .innerJoin('lmi.mediaItem', 'media')
       .select('media.tmdbId', 'id')
@@ -277,14 +278,44 @@ export class ListService {
       .addSelect('media.posterPath', 'posterPath')
       .addSelect('media.type', 'type')
       .addSelect('media.imdbId', 'imdbId')
-      .where('lmi.listId = :listId', { listId: id })
-      .orderBy('lmi.position', 'DESC')
+      .addSelect('lmi.position', 'position')
+      .where('lmi.listId = :listId', { listId: id });
+
+    if (search) {
+      subQuery = subQuery.andWhere('LOWER(media.title) LIKE LOWER(:search)', {
+        search: `%${search}%`,
+      });
+    }
+
+    const result: {
+      id: number;
+      title: string;
+      posterPath: string;
+      type: MediaType;
+      imdbId: string;
+      position: number;
+      totalCount: string;
+    }[] = await this.listMediaItemsRepository.manager
+      .createQueryBuilder()
+      .select('sub.*')
+      .addSelect('COUNT(*) OVER()', 'totalCount')
+      .from(`(${subQuery.getQuery()})`, 'sub')
+      .setParameters(subQuery.getParameters())
+      .orderBy('sub.position', 'DESC')
       .limit(limit)
       .offset((page - 1) * limit)
       .getRawMany();
 
+    const total = result.length > 0 ? parseInt(result[0].totalCount) : 0;
+
     return {
-      results: result,
+      results: result.map((row) => ({
+        id: row.id,
+        title: row.title,
+        posterPath: row.posterPath,
+        type: row.type,
+        imdbId: row.imdbId,
+      })),
       totalPages: Math.ceil(total / limit),
       page,
       totalResults: total,
