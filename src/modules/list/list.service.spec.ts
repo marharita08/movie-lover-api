@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { ILike } from 'typeorm';
 
 import {
   List,
@@ -28,14 +28,23 @@ const mockListRepository = () => ({
   remove: jest.fn(),
   update: jest.fn(),
   createQueryBuilder: jest.fn(),
+  manager: {
+    createQueryBuilder: jest.fn(),
+  },
 });
 
 const mockListMediaItemsRepository = () => ({
   createQueryBuilder: jest.fn(),
+  manager: {
+    createQueryBuilder: jest.fn(),
+  },
 });
 
 const mockMediaPersonsRepository = () => ({
   createQueryBuilder: jest.fn(),
+  manager: {
+    createQueryBuilder: jest.fn(),
+  },
 });
 
 const mockFileService = () => ({
@@ -86,17 +95,22 @@ const makeQueryBuilder = (rawResult: unknown = [], extraMethods = {}) => ({
   getRawMany: jest.fn().mockResolvedValue(rawResult),
   getRawOne: jest.fn().mockResolvedValue(rawResult),
   getCount: jest.fn().mockResolvedValue(0),
+  setParameter: jest.fn().mockReturnThis(),
+  setParameters: jest.fn().mockReturnThis(),
+  getQuery: jest.fn().mockReturnValue('mock-query'),
+  getParameters: jest.fn().mockReturnValue({}),
+  from: jest.fn().mockReturnThis(),
   ...extraMethods,
 });
 
 describe('ListService', () => {
   let service: ListService;
-  let listRepository: jest.Mocked<Repository<List>>;
-  let listMediaItemsRepository: jest.Mocked<Repository<ListMediaItem>>;
-  let mediaPersonsRepository: jest.Mocked<Repository<MediaPerson>>;
-  let fileService: jest.Mocked<FileService>;
-  let csvParserService: jest.Mocked<CsvParserService>;
-  let listMediaItemService: jest.Mocked<ListMediaItemService>;
+  let listRepository: ReturnType<typeof mockListRepository>;
+  let listMediaItemsRepository: ReturnType<typeof mockListMediaItemsRepository>;
+  let mediaPersonsRepository: ReturnType<typeof mockMediaPersonsRepository>;
+  let fileService: ReturnType<typeof mockFileService>;
+  let csvParserService: ReturnType<typeof mockCsvParserService>;
+  let listMediaItemService: ReturnType<typeof mockListMediaItemService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -441,22 +455,25 @@ describe('ListService', () => {
     it('should return paginated persons analytics', async () => {
       listRepository.findOne.mockResolvedValue(makeList());
 
-      const countQb = makeQueryBuilder();
-      countQb.getRawOne.mockResolvedValue({ count: '20' });
-
-      const resultsQb = makeQueryBuilder([
+      const subQueryBuilder = makeQueryBuilder();
+      const outerQueryBuilder = makeQueryBuilder([
         {
           id: 'p-uuid',
           name: 'Actor',
           profilePath: '/profile.jpg',
           itemCount: '5',
           titles: ['Movie 1', 'Movie 2'],
+          totalCount: '20',
         },
       ]);
 
-      mediaPersonsRepository.createQueryBuilder
-        .mockReturnValueOnce(countQb as never)
-        .mockReturnValueOnce(resultsQb as never);
+      mediaPersonsRepository.createQueryBuilder.mockReturnValue(
+        subQueryBuilder as never,
+      );
+
+      mediaPersonsRepository.manager.createQueryBuilder.mockReturnValue(
+        outerQueryBuilder as never,
+      );
 
       const result = await service.getPersonsAnalytics(
         'list-uuid',
@@ -474,6 +491,44 @@ describe('ListService', () => {
         titles: 'Movie 1, Movie 2',
       });
     });
+
+    it('should filter persons by search query', async () => {
+      listRepository.findOne.mockResolvedValue(makeList());
+
+      const subQueryBuilder = makeQueryBuilder();
+      const searchSubQueryBuilder = makeQueryBuilder();
+      const outerQueryBuilder = makeQueryBuilder([
+        {
+          id: 'p-uuid',
+          name: 'Tom Hanks',
+          profilePath: '/profile.jpg',
+          itemCount: '3',
+          titles: ['Forrest Gump', 'Cast Away', 'Toy Story'],
+          totalCount: '1',
+        },
+      ]);
+
+      mediaPersonsRepository.createQueryBuilder
+        .mockReturnValueOnce(subQueryBuilder as never)
+        .mockReturnValueOnce(searchSubQueryBuilder as never);
+
+      mediaPersonsRepository.manager.createQueryBuilder.mockReturnValue(
+        outerQueryBuilder as never,
+      );
+
+      const result = await service.getPersonsAnalytics(
+        'list-uuid',
+        'user-uuid',
+        { role: 'ACTOR' as never, page: 1, limit: 10, search: 'Tom' },
+      );
+
+      expect(result.totalResults).toBe(1);
+      expect(result.results[0].name).toBe('Tom Hanks');
+      expect(subQueryBuilder.setParameter).toHaveBeenCalledWith(
+        'search',
+        '%Tom%',
+      );
+    });
   });
 
   describe('getMediaItems', () => {
@@ -490,22 +545,26 @@ describe('ListService', () => {
     it('should return paginated media items', async () => {
       listRepository.findOne.mockResolvedValue(makeList());
 
-      const countQb = makeQueryBuilder();
-      countQb.getRawOne.mockResolvedValue({ count: '5' });
-
-      const resultsQb = makeQueryBuilder([
+      const subQueryBuilder = makeQueryBuilder();
+      const outerQueryBuilder = makeQueryBuilder([
         {
           id: 1,
           title: 'Movie',
           posterPath: '/poster.jpg',
           type: MediaType.MOVIE,
           imdbId: 'tt1234567',
+          position: 1,
+          totalCount: '5',
         },
       ]);
 
-      listMediaItemsRepository.createQueryBuilder
-        .mockReturnValueOnce(countQb as never)
-        .mockReturnValueOnce(resultsQb as never);
+      listMediaItemsRepository.createQueryBuilder.mockReturnValue(
+        subQueryBuilder as never,
+      );
+
+      listMediaItemsRepository.manager.createQueryBuilder.mockReturnValue(
+        outerQueryBuilder as never,
+      );
 
       const result = await service.getMediaItems('list-uuid', 'user-uuid', {
         page: 1,
@@ -514,6 +573,46 @@ describe('ListService', () => {
 
       expect(result.totalResults).toBe(5);
       expect(result.results[0].title).toBe('Movie');
+      expect(result.results[0]).not.toHaveProperty('position');
+      expect(result.results[0]).not.toHaveProperty('totalCount');
+    });
+
+    it('should filter media items by search query', async () => {
+      listRepository.findOne.mockResolvedValue(makeList());
+
+      const subQueryBuilder = makeQueryBuilder();
+      const outerQueryBuilder = makeQueryBuilder([
+        {
+          id: 1,
+          title: 'Inception',
+          posterPath: '/poster.jpg',
+          type: MediaType.MOVIE,
+          imdbId: 'tt1375666',
+          position: 1,
+          totalCount: '1',
+        },
+      ]);
+
+      listMediaItemsRepository.createQueryBuilder.mockReturnValue(
+        subQueryBuilder as never,
+      );
+
+      listMediaItemsRepository.manager.createQueryBuilder.mockReturnValue(
+        outerQueryBuilder as never,
+      );
+
+      const result = await service.getMediaItems('list-uuid', 'user-uuid', {
+        page: 1,
+        limit: 10,
+        search: 'Inception',
+      });
+
+      expect(result.totalResults).toBe(1);
+      expect(result.results[0].title).toBe('Inception');
+      expect(subQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'LOWER(media.title) LIKE LOWER(:search)',
+        { search: '%Inception%' },
+      );
     });
   });
 

@@ -5,7 +5,9 @@ import {
   IsNotEmpty,
   IsOptional,
   IsPositive,
+  IsString,
   Max,
+  MaxLength,
 } from 'class-validator';
 
 import { MAX_LIMIT } from 'src/const/max-limit';
@@ -15,6 +17,11 @@ export class GetPersonStatsQuery {
   @IsNotEmpty()
   @IsEnum(PersonRole)
   role: PersonRole;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  search?: string;
 
   @IsOptional()
   @Type(() => Number)
