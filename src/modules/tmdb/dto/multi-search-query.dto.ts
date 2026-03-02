@@ -1,7 +1,6 @@
 import {
   IsInt,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
@@ -13,8 +12,7 @@ export class MultiSearchQueryDto {
   query: string;
 
   @IsOptional()
-  @IsNumber()
-  @IsPositive()
   @IsInt()
+  @IsPositive()
   page?: number;
 }
