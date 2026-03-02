@@ -17,11 +17,14 @@ import {
   CrewMemberDto,
   DiscoverMoviesQueryDto,
   MovieDto,
+  MultiSearchQueryDto,
+  MultiSearchResponseDto,
   PersonResponseDto,
   TmdbCreditsResponseDto,
   TmdbFindResponseDto,
   TmdbMovieDetailsResponseDto,
   TMDBMoviesResponseDto,
+  TmdbMultiSearchResponseDto,
   TmdbPersonResponseDto,
   TmdbTvShowDetailsResponseDto,
   TvShowDetailsResponseDto,
@@ -203,6 +206,27 @@ export class TmdbService {
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
           : 'Failed to get person',
+      );
+    }
+  }
+
+  async multiSearch(
+    query: MultiSearchQueryDto,
+  ): Promise<MultiSearchResponseDto> {
+    try {
+      const { data } = await this.http.get<TmdbMultiSearchResponseDto>(
+        `/search/multi`,
+        {
+          params: this.prepareQueryParams(query),
+        },
+      );
+      return this.tmdbResponseMapperService.mapMultiSearch(data);
+    } catch (error) {
+      this.logger.error(`Error searching for ${query.query}:`, error);
+      throw new InternalServerErrorException(
+        axios.isAxiosError(error) && error.response?.data?.status_message
+          ? error.response.data.status_message
+          : 'Failed to search',
       );
     }
   }

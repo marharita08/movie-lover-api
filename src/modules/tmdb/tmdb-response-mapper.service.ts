@@ -5,12 +5,15 @@ import {
   MovieDetailsResponseDto,
   MovieDto,
   MoviesResponseDto,
+  MultiSearchMediaType,
+  MultiSearchResponseDto,
   PersonResponseDto,
   TmdbAggregateCreditsResponseDto,
   TmdbCreditsResponseDto,
   TmdbMovieDetailsResponseDto,
   TMDBMovieDto,
   TMDBMoviesResponseDto,
+  TmdbMultiSearchResponseDto,
   TmdbPersonResponseDto,
   TmdbTvShowDetailsResponseDto,
   TmdbTvShowResponseDto,
@@ -252,6 +255,32 @@ export class TmdbResponseMapperService {
       placeOfBirth: data.place_of_birth,
       popularity: data.popularity,
       profilePath: data.profile_path,
+    };
+  }
+
+  mapMultiSearch(data: TmdbMultiSearchResponseDto): MultiSearchResponseDto {
+    return {
+      page: data.page,
+      results: data.results.map((result) => {
+        if (result.media_type === MultiSearchMediaType.MOVIE) {
+          return {
+            ...this.mapMovie(result as TMDBMovieDto),
+            mediaType: result.media_type,
+          };
+        } else if (result.media_type === MultiSearchMediaType.TV) {
+          return {
+            ...this.mapTvShow(result as TmdbTvShowResponseDto),
+            mediaType: result.media_type,
+          };
+        } else {
+          return {
+            ...this.mapPerson(result as TmdbPersonResponseDto),
+            mediaType: result.media_type,
+          };
+        }
+      }),
+      totalPages: data.total_pages,
+      totalResults: data.total_results,
     };
   }
 }

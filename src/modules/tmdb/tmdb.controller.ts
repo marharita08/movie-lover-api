@@ -10,6 +10,8 @@ import {
   DiscoverMoviesQueryDto,
   MovieDetailsResponseDto,
   MoviesResponseDto,
+  MultiSearchQueryDto,
+  MultiSearchResponseDto,
   PersonResponseDto,
   TvShowDetailsResponseDto,
 } from './dto';
@@ -55,5 +57,12 @@ export class TmdbController {
       throw new BadRequestException('Invalid person ID');
     }
     return this.tmdbService.getPerson(idNumber);
+  }
+
+  @Get('search/multi')
+  async multiSearch(
+    @Query() query: MultiSearchQueryDto,
+  ): Promise<MultiSearchResponseDto> {
+    return this.tmdbService.multiSearch(query);
   }
 }

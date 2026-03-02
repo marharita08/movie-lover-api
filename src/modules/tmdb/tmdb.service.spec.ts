@@ -30,6 +30,7 @@ const mockTmdbResponseMapperService = () => ({
   mapPerson: jest.fn(),
   mapMovie: jest.fn(),
   mapTvShow: jest.fn(),
+  mapMultiSearch: jest.fn(),
 });
 
 describe('TmdbService', () => {
@@ -52,7 +53,6 @@ describe('TmdbService', () => {
     service = module.get(TmdbService);
     tmdbResponseMapperService = module.get(TmdbResponseMapperService);
 
-    // Отримуємо доступ до axios instance через приватне поле
     axiosMock = new MockAdapter(service['http']);
   });
 
@@ -510,6 +510,100 @@ describe('TmdbService', () => {
 
     it('should return empty array if credits is null', () => {
       expect(service.getDirectors(null as never)).toEqual([]);
+    });
+  });
+
+  describe('multiSearch', () => {
+    it('should fetch and return mapped multi-search results', async () => {
+      const query = { query: 'test search', page: 1 };
+      const rawData = {
+        page: 1,
+        total_pages: 5,
+        total_results: 50,
+        results: [
+          {
+            id: 1,
+            media_type: 'movie',
+            title: 'Test Movie',
+          },
+        ],
+      };
+      const mappedData = {
+        page: 1,
+        totalPages: 5,
+        totalResults: 50,
+        results: [
+          {
+            id: 1,
+            mediaType: 'movie',
+            title: 'Test Movie',
+          },
+        ],
+      };
+
+      axiosMock.onGet('/search/multi').reply(200, rawData);
+      tmdbResponseMapperService.mapMultiSearch = jest
+        .fn()
+        .mockReturnValue(mappedData);
+
+      const result = await service.multiSearch(query as never);
+
+      expect(tmdbResponseMapperService.mapMultiSearch).toHaveBeenCalledWith(
+        rawData,
+      );
+      expect(result).toBe(mappedData);
+    });
+
+    it('should throw InternalServerErrorException on API error', async () => {
+      const query = { query: 'test', page: 1 };
+
+      axiosMock.onGet('/search/multi').reply(500, {
+        status_message: 'Server error',
+      });
+
+      await expect(service.multiSearch(query as never)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+
+    it('should throw InternalServerErrorException on network error', async () => {
+      const query = { query: 'test', page: 1 };
+
+      axiosMock.onGet('/search/multi').networkError();
+
+      await expect(service.multiSearch(query as never)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+
+    it('should properly format query parameters', async () => {
+      const query = { query: 'test search', page: 2, includeAdult: false };
+      const rawData = {
+        page: 2,
+        total_pages: 1,
+        total_results: 10,
+        results: [],
+      };
+
+      axiosMock.onGet('/search/multi').reply((config) => {
+        expect(config.params).toEqual({
+          query: 'test search',
+          page: 2,
+          include_adult: false,
+        });
+        return [200, rawData];
+      });
+
+      tmdbResponseMapperService.mapMultiSearch = jest.fn().mockReturnValue({
+        page: 2,
+        totalPages: 1,
+        totalResults: 10,
+        results: [],
+      });
+
+      await service.multiSearch(query as never);
+
+      expect(tmdbResponseMapperService.mapMultiSearch).toHaveBeenCalled();
     });
   });
 });
