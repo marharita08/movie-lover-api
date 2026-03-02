@@ -1,10 +1,14 @@
 import {
+  MovieDto,
+  MultiSearchMediaType,
+  PersonResponseDto,
   TmdbAggregateCreditsResponseDto,
   TmdbCreditsResponseDto,
   TmdbMovieDetailsResponseDto,
   TMDBMoviesResponseDto,
   TmdbPersonResponseDto,
   TmdbTvShowDetailsResponseDto,
+  TvShowResponseDto,
 } from './dto';
 import { TmdbResponseMapperService } from './tmdb-response-mapper.service';
 
@@ -337,6 +341,219 @@ describe('TmdbResponseMapperService', () => {
       expect(result.createdBy).toEqual([]);
       expect(result.productionCompanies).toEqual([]);
       expect(result.seasons).toEqual([]);
+    });
+  });
+
+  describe('mapMultiSearch', () => {
+    it('should map multi-search response with movie results', () => {
+      const mockMovieData = {
+        id: 1,
+        backdrop_path: '/backdrop.jpg',
+        poster_path: '/poster.jpg',
+        original_language: 'en',
+        original_title: 'Original Title',
+        release_date: '2024-01-01',
+        vote_average: 8.5,
+        vote_count: 1000,
+        genre_ids: [28, 12],
+        title: 'Test Movie',
+        adult: false,
+        overview: 'Test Overview',
+        popularity: 10.5,
+        video: false,
+      };
+
+      const mockInput = {
+        page: 1,
+        results: [
+          {
+            ...mockMovieData,
+            media_type: MultiSearchMediaType.MOVIE,
+          },
+        ],
+        total_pages: 10,
+        total_results: 100,
+      };
+
+      const result = service.mapMultiSearch(mockInput);
+      const firstResult = result.results[0] as MovieDto & {
+        mediaType: MultiSearchMediaType;
+      };
+
+      expect(result.page).toBe(1);
+      expect(result.totalPages).toBe(10);
+      expect(result.totalResults).toBe(100);
+      expect(result.results).toHaveLength(1);
+      expect(firstResult.mediaType).toBe(MultiSearchMediaType.MOVIE);
+      expect(firstResult.id).toBe(1);
+      expect(firstResult.posterPath).toBe('/poster.jpg');
+      expect(firstResult.title).toBe('Test Movie');
+    });
+
+    it('should map multi-search response with TV show results', () => {
+      const mockTvShowData = {
+        id: 2,
+        name: 'Test TV Show',
+        backdrop_path: '/tv-backdrop.jpg',
+        poster_path: '/tv-poster.jpg',
+        original_language: 'en',
+        original_name: 'Original TV Show',
+        first_air_date: '2024-01-01',
+        vote_average: 7.5,
+        vote_count: 500,
+        genre_ids: [18, 10765],
+        origin_country: ['US'],
+        overview: 'Test Overview',
+        popularity: 5.5,
+      };
+
+      const mockInput = {
+        page: 1,
+        results: [
+          {
+            ...mockTvShowData,
+            media_type: MultiSearchMediaType.TV,
+          },
+        ],
+        total_pages: 5,
+        total_results: 50,
+      };
+
+      const result = service.mapMultiSearch(mockInput);
+      const firstResult = result.results[0] as TvShowResponseDto & {
+        mediaType: MultiSearchMediaType;
+      };
+
+      expect(firstResult.mediaType).toBe(MultiSearchMediaType.TV);
+      expect(firstResult.name).toBe('Test TV Show');
+      expect(firstResult.id).toBe(2);
+      expect(firstResult.posterPath).toBe('/tv-poster.jpg');
+    });
+
+    it('should map multi-search response with person results', () => {
+      const mockPersonData = {
+        id: 3,
+        name: 'Test Person',
+        profile_path: '/person-profile.jpg',
+        known_for_department: 'Acting',
+        also_known_as: ['Person Alias'],
+        gender: 2,
+        popularity: 10.5,
+        adult: false,
+        birthday: '1990-01-01',
+        deathday: null,
+        placeOfBirth: 'Test Place',
+        biography: 'Test Biography',
+        homepage: 'https://test.com',
+        imdb_id: 'tt1234567',
+        place_of_birth: 'Test Place',
+      };
+
+      const mockInput = {
+        page: 1,
+        results: [
+          {
+            ...mockPersonData,
+            media_type: MultiSearchMediaType.PERSON,
+          },
+        ],
+        total_pages: 3,
+        total_results: 30,
+      };
+
+      const result = service.mapMultiSearch(mockInput);
+      const firstResult = result.results[0] as PersonResponseDto & {
+        mediaType: MultiSearchMediaType;
+      };
+
+      expect(firstResult.mediaType).toBe(MultiSearchMediaType.PERSON);
+      expect(firstResult.name).toBe('Test Person');
+      expect(firstResult.profilePath).toBe('/person-profile.jpg');
+      expect(firstResult.id).toBe(3);
+    });
+
+    it('should map multi-search response with mixed media types', () => {
+      const mockInput = {
+        page: 2,
+        results: [
+          {
+            id: 1,
+            backdrop_path: '/backdrop.jpg',
+            poster_path: '/poster.jpg',
+            original_language: 'en',
+            original_title: 'Original Title',
+            release_date: '2024-01-01',
+            vote_average: 8.5,
+            vote_count: 1000,
+            genre_ids: [28, 12],
+            title: 'Test Movie',
+            adult: false,
+            overview: 'Test Overview',
+            popularity: 10.5,
+            video: false,
+            media_type: MultiSearchMediaType.MOVIE,
+          },
+          {
+            id: 2,
+            name: 'Test TV Show',
+            backdrop_path: '/tv-backdrop.jpg',
+            poster_path: '/tv-poster.jpg',
+            original_language: 'en',
+            original_name: 'Original TV Show',
+            first_air_date: '2024-01-01',
+            vote_average: 7.5,
+            vote_count: 500,
+            genre_ids: [18, 10765],
+            origin_country: ['US'],
+            overview: 'Test Overview',
+            popularity: 5.5,
+            media_type: MultiSearchMediaType.TV,
+          },
+          {
+            id: 3,
+            name: 'Test Person',
+            profile_path: '/person-profile.jpg',
+            known_for_department: 'Acting',
+            also_known_as: ['Person Alias'],
+            gender: 2,
+            popularity: 10.5,
+            adult: false,
+            birthday: '1990-01-01',
+            deathday: null,
+            placeOfBirth: 'Test Place',
+            biography: 'Test Biography',
+            homepage: 'https://test.com',
+            imdb_id: 'tt1234567',
+            place_of_birth: 'Test Place',
+            media_type: MultiSearchMediaType.PERSON,
+          },
+        ],
+        total_pages: 15,
+        total_results: 150,
+      };
+
+      const result = service.mapMultiSearch(mockInput);
+
+      expect(result.results).toHaveLength(3);
+      expect(result.results[0].mediaType).toBe(MultiSearchMediaType.MOVIE);
+      expect(result.results[1].mediaType).toBe(MultiSearchMediaType.TV);
+      expect(result.results[2].mediaType).toBe(MultiSearchMediaType.PERSON);
+    });
+
+    it('should handle empty results array', () => {
+      const mockInput = {
+        page: 1,
+        results: [],
+        total_pages: 0,
+        total_results: 0,
+      };
+
+      const result = service.mapMultiSearch(mockInput);
+
+      expect(result.results).toEqual([]);
+      expect(result.page).toBe(1);
+      expect(result.totalPages).toBe(0);
+      expect(result.totalResults).toBe(0);
     });
   });
 });
