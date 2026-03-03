@@ -6,6 +6,8 @@ import {
   Query,
 } from '@nestjs/common';
 
+import { Public } from '../auth/decorators';
+
 import {
   DiscoverMoviesQueryDto,
   MovieDetailsResponseDto,
@@ -18,6 +20,7 @@ import {
 import { TmdbService } from './tmdb.service';
 
 @Controller('tmdb')
+@Public()
 export class TmdbController {
   constructor(private readonly tmdbService: TmdbService) {}
 
