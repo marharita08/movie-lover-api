@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 
@@ -43,6 +44,60 @@ export class ListService {
     private readonly csvParserService: CsvParserService,
     private readonly listMediaItemService: ListMediaItemService,
   ) {}
+
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  async deleteFailedLists() {
+    this.logger.log('Deleting failed lists');
+
+    const BATCH_SIZE = 20;
+    let offset = 0;
+    let totalProcessed = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const failedLists = await this.listRepository.find({
+        where: {
+          status: ListStatus.FAILED,
+        },
+        take: BATCH_SIZE,
+        skip: offset,
+      });
+
+      if (failedLists.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      this.logger.log(
+        `Processing batch: ${failedLists.length} failed lists (offset: ${offset})`,
+      );
+
+      const deletePromises = failedLists.map(async (list) => {
+        try {
+          await this.fileService.delete(list.fileId);
+          await this.listRepository.delete(list.id);
+
+          this.logger.log(`Deleted list ${list.name} (ID: ${list.id})`);
+        } catch (error) {
+          this.logger.error(
+            `Error deleting list ${list.id} (${list.name}):`,
+            error,
+          );
+        }
+      });
+
+      await Promise.all(deletePromises);
+
+      totalProcessed += failedLists.length;
+      offset += BATCH_SIZE;
+
+      if (failedLists.length < BATCH_SIZE) {
+        hasMore = false;
+      }
+    }
+
+    this.logger.log(`Completed deleting ${totalProcessed} failed lists`);
+  }
 
   async create(dto: CreateListDto, userId: string) {
     const file = await this.fileService.findOne(dto.fileId);
@@ -108,7 +163,7 @@ export class ListService {
   async delete(id: string, userId: string): Promise<void> {
     const list = await this.findOne(id, userId);
     await this.fileService.delete(list.fileId);
-    await this.listRepository.remove(list);
+    await this.listRepository.delete(list.id);
   }
 
   private async processList(listId: string): Promise<void> {

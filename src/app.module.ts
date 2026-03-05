@@ -1,7 +1,9 @@
+import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import * as redisStore from 'cache-manager-redis-store';
 
 import { AuthModule } from './modules/auth/auth.module';
 import { AccessTokenGuard } from './modules/auth/guards';
@@ -15,6 +17,17 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    CacheModule.registerAsync({
+      isGlobal: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        store: redisStore,
+        host: configService.get<string>('REDIS_HOST'),
+        port: configService.get<number>('REDIS_PORT'),
+        ttl: configService.get<number>('CACHE_TTL'),
+      }),
+    }),
     ScheduleModule.forRoot(),
     AuthModule,
     TypeormModule,
