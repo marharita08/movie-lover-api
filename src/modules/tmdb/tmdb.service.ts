@@ -1,4 +1,6 @@
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -7,6 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import rateLimit from 'axios-rate-limit';
+import type { Cache } from 'cache-manager';
 
 import { MediaType } from 'src/entities';
 import { toSnakeCase } from 'src/utils';
@@ -16,7 +19,8 @@ import {
   CreditsResponseDto,
   CrewMemberDto,
   DiscoverMoviesQueryDto,
-  MovieDto,
+  MovieDetailsResponseDto,
+  MoviesResponseDto,
   MultiSearchQueryDto,
   MultiSearchResponseDto,
   PersonResponseDto,
@@ -28,9 +32,9 @@ import {
   TmdbPersonResponseDto,
   TmdbTvShowDetailsResponseDto,
   TvShowDetailsResponseDto,
-  TvShowResponseDto,
 } from './dto';
 import { TmdbResponseMapperService } from './tmdb-response-mapper.service';
+import { FindMediaResponseDto } from './dto/find-media-response.dto';
 
 @Injectable()
 export class TmdbService {
@@ -38,6 +42,7 @@ export class TmdbService {
   private readonly logger = new Logger(TmdbService.name);
 
   constructor(
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly configService: ConfigService,
     private readonly tmdbResponseMapperService: TmdbResponseMapperService,
   ) {
@@ -63,7 +68,31 @@ export class TmdbService {
     });
   }
 
-  async discoverMovies(query: DiscoverMoviesQueryDto) {
+  async discoverMovies(
+    query: DiscoverMoviesQueryDto,
+  ): Promise<MoviesResponseDto> {
+    const shouldCache = !query.page || query.page <= 5;
+
+    if (!shouldCache) {
+      return this.fetchDiscoverMoviesFromApi(query);
+    }
+
+    const cacheKey = this.generateCacheKey('discover:movies', query);
+    const cached = await this.cacheManager.get(cacheKey);
+
+    if (cached) {
+      return cached as MoviesResponseDto;
+    }
+
+    const data = await this.fetchDiscoverMoviesFromApi(query);
+    await this.cacheManager.set(cacheKey, data, 3600000);
+
+    return data;
+  }
+
+  async fetchDiscoverMoviesFromApi(
+    query: DiscoverMoviesQueryDto,
+  ): Promise<MoviesResponseDto> {
     try {
       const params = this.prepareQueryParams(query);
       const { data } = await this.http.get<TMDBMoviesResponseDto>(
@@ -82,11 +111,22 @@ export class TmdbService {
   }
 
   async movieDetails(id: number) {
+    const cacheKey = `movie:${id}`;
+
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) {
+      return cached as MovieDetailsResponseDto;
+    }
+
     try {
       const { data } = await this.http.get<TmdbMovieDetailsResponseDto>(
         `/movie/${id}`,
       );
-      return this.tmdbResponseMapperService.mapMovieDetails(data);
+      const mapped = this.tmdbResponseMapperService.mapMovieDetails(data);
+
+      await this.cacheManager.set(cacheKey, mapped);
+
+      return mapped;
     } catch (error) {
       this.logger.error(`Error fetching movie details ${id}:`, error);
 
@@ -104,10 +144,16 @@ export class TmdbService {
     }
   }
 
-  async findMediaByImdbId(imdbId: string): Promise<{
-    type: MediaType;
-    data: MovieDto | TvShowResponseDto;
-  } | null> {
+  async findMediaByImdbId(
+    imdbId: string,
+  ): Promise<FindMediaResponseDto | null> {
+    const cacheKey = `media:${imdbId}`;
+
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) {
+      return cached as FindMediaResponseDto;
+    }
+
     try {
       const { data } = await this.http.get<TmdbFindResponseDto>(
         `/find/${imdbId}`,
@@ -117,17 +163,25 @@ export class TmdbService {
       );
 
       if (data.movie_results?.length > 0) {
-        return {
+        const mapped = {
           type: MediaType.MOVIE,
           data: this.tmdbResponseMapperService.mapMovie(data.movie_results[0]),
         };
+
+        await this.cacheManager.set(cacheKey, mapped);
+
+        return mapped;
       }
 
       if (data.tv_results?.length > 0) {
-        return {
+        const mapped = {
           type: MediaType.TV,
           data: this.tmdbResponseMapperService.mapTvShow(data.tv_results[0]),
         };
+
+        await this.cacheManager.set(cacheKey, mapped);
+
+        return mapped;
       }
 
       return null;
@@ -138,6 +192,13 @@ export class TmdbService {
   }
 
   async getTVShowDetails(tvShowId: number): Promise<TvShowDetailsResponseDto> {
+    const cacheKey = `tv:${tvShowId}`;
+
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) {
+      return cached as TvShowDetailsResponseDto;
+    }
+
     try {
       const { data } = await this.http.get<TmdbTvShowDetailsResponseDto>(
         `/tv/${tvShowId}`,
@@ -145,7 +206,12 @@ export class TmdbService {
           params: { append_to_response: 'external_ids' },
         },
       );
-      return this.tmdbResponseMapperService.mapTvShowDetails(data);
+
+      const mapped = this.tmdbResponseMapperService.mapTvShowDetails(data);
+
+      await this.cacheManager.set(cacheKey, mapped);
+
+      return mapped;
     } catch (error) {
       this.logger.error(`Error getting TV show details ${tvShowId}:`, error);
 
@@ -164,11 +230,22 @@ export class TmdbService {
   }
 
   async getMovieCredits(movieId: number): Promise<CreditsResponseDto | null> {
+    const cacheKey = `movie-credits:${movieId}`;
+
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) {
+      return cached as CreditsResponseDto;
+    }
+
     try {
       const { data } = await this.http.get<TmdbCreditsResponseDto>(
         `/movie/${movieId}/credits`,
       );
-      return this.tmdbResponseMapperService.mapCredits(data);
+      const mapped = this.tmdbResponseMapperService.mapCredits(data);
+
+      await this.cacheManager.set(cacheKey, mapped);
+
+      return mapped;
     } catch (error) {
       this.logger.error(`Error getting movie credits ${movieId}:`, error);
       return null;
@@ -176,11 +253,22 @@ export class TmdbService {
   }
 
   async getTVShowCredits(tvShowId: number): Promise<CreditsResponseDto | null> {
+    const cacheKey = `tv-credits:${tvShowId}`;
+
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) {
+      return cached as CreditsResponseDto;
+    }
+
     try {
       const { data } = await this.http.get<TmdbCreditsResponseDto>(
         `/tv/${tvShowId}/aggregate_credits`,
       );
-      return this.tmdbResponseMapperService.mapCredits(data);
+      const mapped = this.tmdbResponseMapperService.mapCredits(data);
+
+      await this.cacheManager.set(cacheKey, mapped);
+
+      return mapped;
     } catch (error) {
       this.logger.error(`Error getting TV show credits ${tvShowId}:`, error);
       return null;
@@ -188,11 +276,22 @@ export class TmdbService {
   }
 
   async getPerson(personId: number): Promise<PersonResponseDto> {
+    const cacheKey = `person:${personId}`;
+
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) {
+      return cached as PersonResponseDto;
+    }
+
     try {
       const { data } = await this.http.get<TmdbPersonResponseDto>(
         `/person/${personId}`,
       );
-      return this.tmdbResponseMapperService.mapPerson(data);
+      const mapped = this.tmdbResponseMapperService.mapPerson(data);
+
+      await this.cacheManager.set(cacheKey, mapped);
+
+      return mapped;
     } catch (error) {
       this.logger.error(`Error getting person ${personId}:`, error);
 
@@ -264,5 +363,16 @@ export class TmdbService {
     });
 
     return params;
+  }
+
+  private generateCacheKey(prefix: string, query: Record<string, any>): string {
+    const sortedKeys = Object.keys(query).sort();
+
+    const params = sortedKeys
+      .filter((key) => query[key] !== undefined && query[key] !== null)
+      .map((key) => `${key}:${query[key]}`)
+      .join('|');
+
+    return params ? `${prefix}:${params}` : `${prefix}:default`;
   }
 }

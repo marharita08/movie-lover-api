@@ -1,3 +1,4 @@
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   InternalServerErrorException,
   NotFoundException,
@@ -22,6 +23,13 @@ const mockConfigService = () => ({
   }),
 });
 
+const mockCacheManager = () => ({
+  get: jest.fn(),
+  set: jest.fn(),
+  del: jest.fn(),
+  stores: [] as any,
+});
+
 const mockTmdbResponseMapperService = () => ({
   mapMoviesResponse: jest.fn(),
   mapMovieDetails: jest.fn(),
@@ -36,6 +44,7 @@ const mockTmdbResponseMapperService = () => ({
 describe('TmdbService', () => {
   let service: TmdbService;
   let tmdbResponseMapperService: jest.Mocked<TmdbResponseMapperService>;
+  let cacheManager: any;
   let axiosMock: MockAdapter;
 
   beforeEach(async () => {
@@ -43,6 +52,7 @@ describe('TmdbService', () => {
       providers: [
         TmdbService,
         { provide: ConfigService, useFactory: mockConfigService },
+        { provide: CACHE_MANAGER, useFactory: mockCacheManager },
         {
           provide: TmdbResponseMapperService,
           useFactory: mockTmdbResponseMapperService,
@@ -52,6 +62,7 @@ describe('TmdbService', () => {
 
     service = module.get(TmdbService);
     tmdbResponseMapperService = module.get(TmdbResponseMapperService);
+    cacheManager = module.get(CACHE_MANAGER);
 
     axiosMock = new MockAdapter(service['http']);
   });
@@ -70,6 +81,7 @@ describe('TmdbService', () => {
             provide: ConfigService,
             useValue: { get: jest.fn().mockReturnValue(undefined) },
           },
+          { provide: CACHE_MANAGER, useFactory: mockCacheManager },
           {
             provide: TmdbResponseMapperService,
             useFactory: mockTmdbResponseMapperService,
@@ -98,6 +110,7 @@ describe('TmdbService', () => {
         totalResults: 0,
       };
 
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/discover/movie').reply(200, rawData);
       tmdbResponseMapperService.mapMoviesResponse.mockReturnValue(mappedData);
 
@@ -106,10 +119,53 @@ describe('TmdbService', () => {
       expect(tmdbResponseMapperService.mapMoviesResponse).toHaveBeenCalledWith(
         rawData,
       );
+      expect(cacheManager.set).toHaveBeenCalled();
+      expect(result).toBe(mappedData);
+    });
+
+    it('should return cached data if available', async () => {
+      const cachedData = {
+        results: [],
+        page: 1,
+        totalPages: 1,
+        totalResults: 0,
+      };
+
+      cacheManager.get.mockResolvedValue(cachedData);
+
+      const result = await service.discoverMovies({ page: 1 } as never);
+
+      expect(cacheManager.get).toHaveBeenCalled();
+      expect(axiosMock.history.get.length).toBe(0);
+      expect(result).toBe(cachedData);
+    });
+
+    it('should not cache pages higher than 5', async () => {
+      const rawData = {
+        results: [],
+        page: 6,
+        total_pages: 10,
+        total_results: 100,
+      };
+      const mappedData = {
+        results: [],
+        page: 6,
+        totalPages: 10,
+        totalResults: 100,
+      };
+
+      axiosMock.onGet('/discover/movie').reply(200, rawData);
+      tmdbResponseMapperService.mapMoviesResponse.mockReturnValue(mappedData);
+
+      const result = await service.discoverMovies({ page: 6 } as never);
+
+      expect(cacheManager.get).not.toHaveBeenCalled();
+      expect(cacheManager.set).not.toHaveBeenCalled();
       expect(result).toBe(mappedData);
     });
 
     it('should throw InternalServerErrorException if response fails', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/discover/movie').reply(500, {
         status_message: 'Internal Server Error',
       });
@@ -120,6 +176,7 @@ describe('TmdbService', () => {
     });
 
     it('should throw InternalServerErrorException on network error', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/discover/movie').networkError();
 
       await expect(service.discoverMovies({} as never)).rejects.toThrow(
@@ -133,6 +190,7 @@ describe('TmdbService', () => {
       const rawData = { id: 1 };
       const mappedData = { id: 1, title: 'Movie' };
 
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/movie/1').reply(200, rawData);
       tmdbResponseMapperService.mapMovieDetails.mockReturnValue(
         mappedData as never,
@@ -143,10 +201,24 @@ describe('TmdbService', () => {
       expect(tmdbResponseMapperService.mapMovieDetails).toHaveBeenCalledWith(
         rawData,
       );
+      expect(cacheManager.set).toHaveBeenCalledWith('movie:1', mappedData);
       expect(result).toBe(mappedData);
     });
 
+    it('should return cached data if available', async () => {
+      const cachedData = { id: 1, title: 'Movie' };
+
+      cacheManager.get.mockResolvedValue(cachedData);
+
+      const result = await service.movieDetails(1);
+
+      expect(cacheManager.get).toHaveBeenCalledWith('movie:1');
+      expect(axiosMock.history.get.length).toBe(0);
+      expect(result).toBe(cachedData);
+    });
+
     it('should throw NotFoundException on 404', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/movie/999').reply(404, {
         status_message: 'Movie not found',
       });
@@ -160,6 +232,7 @@ describe('TmdbService', () => {
     });
 
     it('should throw InternalServerErrorException on other errors', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/movie/1').reply(500, {
         status_message: 'Server error',
       });
@@ -170,6 +243,7 @@ describe('TmdbService', () => {
     });
 
     it('should throw InternalServerErrorException on network error', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/movie/1').networkError();
 
       await expect(service.movieDetails(1)).rejects.toThrow(
@@ -183,6 +257,7 @@ describe('TmdbService', () => {
       const rawMovie = { id: 1 };
       const mappedMovie = { id: 1, title: 'Movie' };
 
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/find/tt1234567').reply(200, {
         movie_results: [rawMovie],
         tv_results: [],
@@ -192,13 +267,33 @@ describe('TmdbService', () => {
       const result = await service.findMediaByImdbId('tt1234567');
 
       expect(tmdbResponseMapperService.mapMovie).toHaveBeenCalledWith(rawMovie);
+      expect(cacheManager.set).toHaveBeenCalledWith('media:tt1234567', {
+        type: MediaType.MOVIE,
+        data: mappedMovie,
+      });
       expect(result).toEqual({ type: MediaType.MOVIE, data: mappedMovie });
+    });
+
+    it('should return cached data if available', async () => {
+      const cachedData = {
+        type: MediaType.MOVIE,
+        data: { id: 1, title: 'Movie' },
+      };
+
+      cacheManager.get.mockResolvedValue(cachedData);
+
+      const result = await service.findMediaByImdbId('tt1234567');
+
+      expect(cacheManager.get).toHaveBeenCalledWith('media:tt1234567');
+      expect(axiosMock.history.get.length).toBe(0);
+      expect(result).toBe(cachedData);
     });
 
     it('should return mapped tv show if tv_results is not empty', async () => {
       const rawTvShow = { id: 2 };
       const mappedTvShow = { id: 2, name: 'Show' };
 
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/find/tt1234567').reply(200, {
         movie_results: [],
         tv_results: [rawTvShow],
@@ -212,10 +307,15 @@ describe('TmdbService', () => {
       expect(tmdbResponseMapperService.mapTvShow).toHaveBeenCalledWith(
         rawTvShow,
       );
+      expect(cacheManager.set).toHaveBeenCalledWith('media:tt1234567', {
+        type: MediaType.TV,
+        data: mappedTvShow,
+      });
       expect(result).toEqual({ type: MediaType.TV, data: mappedTvShow });
     });
 
     it('should return null if no results found', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/find/tt1234567').reply(200, {
         movie_results: [],
         tv_results: [],
@@ -227,6 +327,7 @@ describe('TmdbService', () => {
     });
 
     it('should return null if response fails', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/find/tt1234567').reply(500);
 
       const result = await service.findMediaByImdbId('tt1234567');
@@ -235,6 +336,7 @@ describe('TmdbService', () => {
     });
 
     it('should return null if network error occurs', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/find/tt1234567').networkError();
 
       const result = await service.findMediaByImdbId('tt1234567');
@@ -248,6 +350,7 @@ describe('TmdbService', () => {
       const rawData = { id: 1 };
       const mappedData = { id: 1, name: 'Show' };
 
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/tv/1').reply(200, rawData);
       tmdbResponseMapperService.mapTvShowDetails.mockReturnValue(
         mappedData as never,
@@ -258,10 +361,24 @@ describe('TmdbService', () => {
       expect(tmdbResponseMapperService.mapTvShowDetails).toHaveBeenCalledWith(
         rawData,
       );
+      expect(cacheManager.set).toHaveBeenCalledWith('tv:1', mappedData);
       expect(result).toBe(mappedData);
     });
 
+    it('should return cached data if available', async () => {
+      const cachedData = { id: 1, name: 'Show' };
+
+      cacheManager.get.mockResolvedValue(cachedData);
+
+      const result = await service.getTVShowDetails(1);
+
+      expect(cacheManager.get).toHaveBeenCalledWith('tv:1');
+      expect(axiosMock.history.get.length).toBe(0);
+      expect(result).toBe(cachedData);
+    });
+
     it('should throw NotFoundException on 404', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/tv/999').reply(404, {
         status_message: 'TV show not found',
       });
@@ -275,6 +392,7 @@ describe('TmdbService', () => {
     });
 
     it('should throw InternalServerErrorException on other errors', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/tv/1').reply(500);
 
       await expect(service.getTVShowDetails(1)).rejects.toThrow(
@@ -288,6 +406,7 @@ describe('TmdbService', () => {
       const rawCredits = { id: 1, cast: [], crew: [] };
       const mappedCredits = { id: 1, cast: [], crew: [] };
 
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/movie/1/credits').reply(200, rawCredits);
       tmdbResponseMapperService.mapCredits.mockReturnValue(mappedCredits);
 
@@ -296,10 +415,27 @@ describe('TmdbService', () => {
       expect(tmdbResponseMapperService.mapCredits).toHaveBeenCalledWith(
         rawCredits,
       );
+      expect(cacheManager.set).toHaveBeenCalledWith(
+        'movie-credits:1',
+        mappedCredits,
+      );
       expect(result).toBe(mappedCredits);
     });
 
+    it('should return cached data if available', async () => {
+      const cachedData = { id: 1, cast: [], crew: [] };
+
+      cacheManager.get.mockResolvedValue(cachedData);
+
+      const result = await service.getMovieCredits(1);
+
+      expect(cacheManager.get).toHaveBeenCalledWith('movie-credits:1');
+      expect(axiosMock.history.get.length).toBe(0);
+      expect(result).toBe(cachedData);
+    });
+
     it('should return null if response fails', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/movie/1/credits').reply(500);
 
       const result = await service.getMovieCredits(1);
@@ -308,6 +444,7 @@ describe('TmdbService', () => {
     });
 
     it('should return null on network error', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/movie/1/credits').networkError();
 
       const result = await service.getMovieCredits(1);
@@ -321,15 +458,33 @@ describe('TmdbService', () => {
       const rawCredits = { id: 1, cast: [], crew: [] };
       const mappedCredits = { id: 1, cast: [], crew: [] };
 
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/tv/1/aggregate_credits').reply(200, rawCredits);
       tmdbResponseMapperService.mapCredits.mockReturnValue(mappedCredits);
 
       const result = await service.getTVShowCredits(1);
 
+      expect(cacheManager.set).toHaveBeenCalledWith(
+        'tv-credits:1',
+        mappedCredits,
+      );
       expect(result).toBe(mappedCredits);
     });
 
+    it('should return cached data if available', async () => {
+      const cachedData = { id: 1, cast: [], crew: [] };
+
+      cacheManager.get.mockResolvedValue(cachedData);
+
+      const result = await service.getTVShowCredits(1);
+
+      expect(cacheManager.get).toHaveBeenCalledWith('tv-credits:1');
+      expect(axiosMock.history.get.length).toBe(0);
+      expect(result).toBe(cachedData);
+    });
+
     it('should return null if response fails', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/tv/1/aggregate_credits').reply(500);
 
       const result = await service.getTVShowCredits(1);
@@ -338,6 +493,7 @@ describe('TmdbService', () => {
     });
 
     it('should return null on network error', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/tv/1/aggregate_credits').networkError();
 
       const result = await service.getTVShowCredits(1);
@@ -351,6 +507,7 @@ describe('TmdbService', () => {
       const rawPerson = { id: 1, name: 'Actor' };
       const mappedPerson = { id: 1, name: 'Actor' };
 
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/person/1').reply(200, rawPerson);
       tmdbResponseMapperService.mapPerson.mockReturnValue(
         mappedPerson as never,
@@ -361,10 +518,24 @@ describe('TmdbService', () => {
       expect(tmdbResponseMapperService.mapPerson).toHaveBeenCalledWith(
         rawPerson,
       );
+      expect(cacheManager.set).toHaveBeenCalledWith('person:1', mappedPerson);
       expect(result).toBe(mappedPerson);
     });
 
+    it('should return cached data if available', async () => {
+      const cachedData = { id: 1, name: 'Actor' };
+
+      cacheManager.get.mockResolvedValue(cachedData);
+
+      const result = await service.getPerson(1);
+
+      expect(cacheManager.get).toHaveBeenCalledWith('person:1');
+      expect(axiosMock.history.get.length).toBe(0);
+      expect(result).toBe(cachedData);
+    });
+
     it('should throw NotFoundException on 404', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/person/999').reply(404, {
         status_message: 'Person not found',
       });
@@ -374,6 +545,7 @@ describe('TmdbService', () => {
     });
 
     it('should throw InternalServerErrorException on other errors', async () => {
+      cacheManager.get.mockResolvedValue(null);
       axiosMock.onGet('/person/1').reply(500);
 
       await expect(service.getPerson(1)).rejects.toThrow(
