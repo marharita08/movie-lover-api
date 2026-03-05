@@ -26,7 +26,7 @@ const mockListRepository = () => ({
   find: jest.fn(),
   findOne: jest.fn(),
   findAndCount: jest.fn(),
-  remove: jest.fn(),
+  delete: jest.fn(),
   update: jest.fn(),
   createQueryBuilder: jest.fn(),
   manager: {
@@ -394,12 +394,12 @@ describe('ListService', () => {
       const list = makeList();
       listRepository.findOne.mockResolvedValue(list);
       fileService.delete.mockResolvedValue(undefined);
-      listRepository.remove.mockResolvedValue(list);
+      listRepository.delete.mockResolvedValue(list);
 
       await service.delete('list-uuid', 'user-uuid');
 
       expect(fileService.delete).toHaveBeenCalledWith(list.fileId);
-      expect(listRepository.remove).toHaveBeenCalledWith(list);
+      expect(listRepository.delete).toHaveBeenCalledWith(list.id);
     });
   });
 
@@ -854,7 +854,7 @@ describe('ListService', () => {
         .mockResolvedValueOnce(failedLists2 as any);
 
       fileService.delete.mockResolvedValue(undefined);
-      listRepository.remove.mockResolvedValue({} as any);
+      listRepository.delete.mockResolvedValue({} as any);
 
       await service.deleteFailedLists();
 
@@ -871,7 +871,7 @@ describe('ListService', () => {
       });
 
       expect(fileService.delete).toHaveBeenCalledTimes(35);
-      expect(listRepository.remove).toHaveBeenCalledTimes(35);
+      expect(listRepository.delete).toHaveBeenCalledTimes(35);
     });
 
     it('should handle multiple full batches with empty final batch', async () => {
@@ -895,7 +895,7 @@ describe('ListService', () => {
         .mockResolvedValueOnce([]);
 
       fileService.delete.mockResolvedValue(undefined);
-      listRepository.remove.mockResolvedValue({} as any);
+      listRepository.delete.mockResolvedValue({} as any);
 
       await service.deleteFailedLists();
 
@@ -917,7 +917,7 @@ describe('ListService', () => {
       });
 
       expect(fileService.delete).toHaveBeenCalledTimes(40);
-      expect(listRepository.remove).toHaveBeenCalledTimes(40);
+      expect(listRepository.delete).toHaveBeenCalledTimes(40);
     });
 
     it('should handle empty result (no failed lists)', async () => {
@@ -927,7 +927,7 @@ describe('ListService', () => {
 
       expect(listRepository.find).toHaveBeenCalledTimes(1);
       expect(fileService.delete).not.toHaveBeenCalled();
-      expect(listRepository.remove).not.toHaveBeenCalled();
+      expect(listRepository.delete).not.toHaveBeenCalled();
     });
 
     it('should call fileService.delete with correct fileId', async () => {
@@ -942,12 +942,12 @@ describe('ListService', () => {
 
       listRepository.find.mockResolvedValueOnce(failedLists as any);
       fileService.delete.mockResolvedValue(undefined);
-      listRepository.remove.mockResolvedValue({} as any);
+      listRepository.delete.mockResolvedValue({} as any);
 
       await service.deleteFailedLists();
 
       expect(fileService.delete).toHaveBeenCalledWith('test-file-123');
-      expect(listRepository.remove).toHaveBeenCalledWith(failedLists[0]);
+      expect(listRepository.delete).toHaveBeenCalledWith(failedLists[0].id);
     });
 
     it('should process all lists even if some fail', async () => {
@@ -967,12 +967,12 @@ describe('ListService', () => {
         return Promise.resolve(undefined);
       });
 
-      listRepository.remove.mockResolvedValue({} as any);
+      listRepository.delete.mockResolvedValue({} as any);
 
       await service.deleteFailedLists();
 
       expect(fileService.delete).toHaveBeenCalledTimes(10);
-      expect(listRepository.remove).toHaveBeenCalledTimes(7);
+      expect(listRepository.delete).toHaveBeenCalledTimes(7);
     });
   });
 });

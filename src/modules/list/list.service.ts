@@ -75,7 +75,7 @@ export class ListService {
       const deletePromises = failedLists.map(async (list) => {
         try {
           await this.fileService.delete(list.fileId);
-          await this.listRepository.remove(list);
+          await this.listRepository.delete(list.id);
 
           this.logger.log(`Deleted list ${list.name} (ID: ${list.id})`);
         } catch (error) {
@@ -163,7 +163,7 @@ export class ListService {
   async delete(id: string, userId: string): Promise<void> {
     const list = await this.findOne(id, userId);
     await this.fileService.delete(list.fileId);
-    await this.listRepository.remove(list);
+    await this.listRepository.delete(list.id);
   }
 
   private async processList(listId: string): Promise<void> {
