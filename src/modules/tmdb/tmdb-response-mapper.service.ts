@@ -7,6 +7,7 @@ import {
   MoviesResponseDto,
   MultiSearchMediaType,
   MultiSearchResponseDto,
+  PaginatedResponseDto,
   PersonResponseDto,
   TmdbAggregateCreditsResponseDto,
   TmdbCreditsResponseDto,
@@ -14,6 +15,7 @@ import {
   TMDBMovieDto,
   TMDBMoviesResponseDto,
   TmdbMultiSearchResponseDto,
+  TmdbPaginatedResponseDto,
   TmdbPersonResponseDto,
   TmdbTvShowDetailsResponseDto,
   TmdbTvShowResponseDto,
@@ -279,6 +281,17 @@ export class TmdbResponseMapperService {
           };
         }
       }),
+      totalPages: data.total_pages,
+      totalResults: data.total_results,
+    };
+  }
+
+  mapTvShows(
+    data: TmdbPaginatedResponseDto<TmdbTvShowResponseDto>,
+  ): PaginatedResponseDto<TvShowResponseDto> {
+    return {
+      page: data.page,
+      results: data.results.map((tvShow) => this.mapTvShow(tvShow)),
       totalPages: data.total_pages,
       totalResults: data.total_results,
     };

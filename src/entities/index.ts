@@ -1,4 +1,5 @@
 export * from './base.entity';
+export * from './chat-message.entity';
 export * from './file.entity';
 export * from './list.entity';
 export * from './list-media-item.entity';

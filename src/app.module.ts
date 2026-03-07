@@ -5,8 +5,10 @@ import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import * as redisStore from 'cache-manager-redis-store';
 
+import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AccessTokenGuard } from './modules/auth/guards';
+import { ChatModule } from './modules/chat/chat.module';
 import { CsvParserModule } from './modules/csv-parser/csv-parser.module';
 import { FileModule } from './modules/file/file.module';
 import { ListModule } from './modules/list/list.module';
@@ -36,6 +38,8 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
     ListModule,
     StorageModule,
     CsvParserModule,
+    AiModule,
+    ChatModule,
   ],
   providers: [
     {

@@ -1,6 +1,7 @@
 import { Column, Entity, OneToMany } from 'typeorm';
 
 import { BaseEntity } from './base.entity';
+import { ChatMessage } from './chat-message.entity';
 import { File } from './file.entity';
 import { List } from './list.entity';
 
@@ -29,4 +30,7 @@ export class User extends BaseEntity {
 
   @OneToMany(() => List, (list) => list.user)
   lists: List[];
+
+  @OneToMany(() => ChatMessage, (chatMessage) => chatMessage.user)
+  chatMessages: ChatMessage[];
 }

@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import {
+  ChatMessage,
   File,
   List,
   ListMediaItem,
@@ -28,6 +29,7 @@ import {
         password: config.get<string>('DB_PASSWORD'),
         database: config.get<string>('DB_NAME'),
         entities: [
+          ChatMessage,
           User,
           Otp,
           ResetPasswordToken,
