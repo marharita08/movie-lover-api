@@ -6,12 +6,12 @@ export class ChatHistoryQueryDto {
   @IsInt()
   @Min(1)
   @Type(() => Number)
-  page?: number = 1;
+  page?: number;
 
   @IsOptional()
   @IsInt()
   @Min(1)
   @Max(100)
   @Type(() => Number)
-  limit?: number = 20;
+  limit?: number;
 }

@@ -68,6 +68,6 @@ Each CSV file contains the following columns:
 - Your Rating: User's personal rating (if rated)
 - Genres: Comma-separated list of genres
 
-Analyze these CSV files to understand the user's viewing preferences and history. DO NOT recommend ANY titles that appear in these files.`;
+Analyze these CSV files to understand the user's viewing preferences and history. DO NOT recommend ANY titles that appear in these files, unless user specifically asks for recommendations from his existing lists.`;
 
 export const LISTS_CONTEXT_NO_FILES = 'The user has no lists uploaded yet.';
