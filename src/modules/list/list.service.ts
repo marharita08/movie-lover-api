@@ -186,7 +186,9 @@ export class ListService {
 
       const BATCH_SIZE = 10;
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        const batch = rows.slice(i, i + BATCH_SIZE);
+        const batch = rows
+          .slice(i, i + BATCH_SIZE)
+          .filter((row) => !row['Title Type']?.includes('Episode'));
         await Promise.all(
           batch.map((row, index) =>
             this.listMediaItemService.add(list.id, row, i + index),

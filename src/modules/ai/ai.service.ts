@@ -1,6 +1,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { FileState, GoogleAIFileManager } from '@google/generative-ai/server';
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -35,7 +39,9 @@ export class AiService {
   ) {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY is not configured');
+      throw new InternalServerErrorException(
+        'GEMINI_API_KEY is not configured',
+      );
     }
 
     this.genAI = new GoogleGenerativeAI(apiKey);
@@ -268,12 +274,14 @@ export class AiService {
       const recommendations = JSON.parse(cleanJson);
 
       if (!Array.isArray(recommendations)) {
-        throw new Error('Recommendations is not an array');
+        throw new InternalServerErrorException(
+          'Recommendations is not an array',
+        );
       }
 
       const validatedRecommendations = recommendations.map((rec, index) => {
         if (!rec.title || !rec.type) {
-          throw new Error(
+          throw new InternalServerErrorException(
             `Invalid recommendation at index ${index}: missing required fields`,
           );
         }
@@ -298,7 +306,9 @@ export class AiService {
       };
     } catch (error) {
       this.logger.error('Error parsing AI response', error);
-      throw new Error('Failed to parse AI response. Please try again.');
+      throw new InternalServerErrorException(
+        'Failed to parse AI response. Please try again.',
+      );
     }
   }
 
@@ -306,7 +316,9 @@ export class AiService {
     const jsonMatch = fullText.match(/\[[\s\S]*\]/);
 
     if (!jsonMatch) {
-      throw new Error('Could not find valid JSON in response');
+      throw new InternalServerErrorException(
+        'Could not find valid JSON in response',
+      );
     }
 
     const recommendations = JSON.parse(jsonMatch[0]);
