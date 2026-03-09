@@ -35,4 +35,7 @@ export class ChatMessage extends BaseEntity {
 
   @ManyToOne(() => User, (user) => user.chatMessages, { onDelete: 'CASCADE' })
   user: User;
+
+  @Column({ default: false })
+  isError: boolean;
 }

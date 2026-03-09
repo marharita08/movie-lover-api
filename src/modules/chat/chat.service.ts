@@ -120,11 +120,15 @@ export class ChatService {
       );
     }
 
+    const isAnySuccess = successfulMediaItems.length > 0;
     const aiChatMessage = this.chatMessageRepository.create({
       userId,
-      text: aiResponse.text,
+      text: isAnySuccess
+        ? aiResponse.text
+        : 'An error occurred while generating recommendations. Please try again.',
       author: MessageAuthor.ASSISTANT,
-      mediaItems: successfulMediaItems.length > 0 ? successfulMediaItems : null,
+      mediaItems: isAnySuccess ? successfulMediaItems : null,
+      isError: !isAnySuccess,
     });
 
     return await this.chatMessageRepository.save(aiChatMessage);
