@@ -20,6 +20,7 @@ import {
   CrewMemberDto,
   DiscoverMoviesQueryDto,
   MovieDetailsResponseDto,
+  MovieSearchQueryDto,
   MoviesResponseDto,
   MultiSearchQueryDto,
   MultiSearchResponseDto,
@@ -29,12 +30,17 @@ import {
   TmdbMovieDetailsResponseDto,
   TMDBMoviesResponseDto,
   TmdbMultiSearchResponseDto,
+  TmdbPaginatedResponseDto,
   TmdbPersonResponseDto,
   TmdbTvShowDetailsResponseDto,
+  TmdbTvShowResponseDto,
   TvShowDetailsResponseDto,
+  TvShowResponseDto,
 } from './dto';
 import { TmdbResponseMapperService } from './tmdb-response-mapper.service';
 import { FindMediaResponseDto } from './dto/find-media-response.dto';
+import { PaginatedResponseDto } from './dto/paginated-response.dto';
+import { TvShowSearchQueryDto } from './dto/tv-show-search-query.dto';
 
 @Injectable()
 export class TmdbService {
@@ -320,6 +326,45 @@ export class TmdbService {
         },
       );
       return this.tmdbResponseMapperService.mapMultiSearch(data);
+    } catch (error) {
+      this.logger.error(`Error searching for ${query.query}:`, error);
+      throw new InternalServerErrorException(
+        axios.isAxiosError(error) && error.response?.data?.status_message
+          ? error.response.data.status_message
+          : 'Failed to search',
+      );
+    }
+  }
+
+  async searchMovies(query: MovieSearchQueryDto): Promise<MoviesResponseDto> {
+    try {
+      const { data } = await this.http.get<TMDBMoviesResponseDto>(
+        `/search/movie`,
+        {
+          params: this.prepareQueryParams(query),
+        },
+      );
+      return this.tmdbResponseMapperService.mapMoviesResponse(data);
+    } catch (error) {
+      this.logger.error(`Error searching for ${query.query}:`, error);
+      throw new InternalServerErrorException(
+        axios.isAxiosError(error) && error.response?.data?.status_message
+          ? error.response.data.status_message
+          : 'Failed to search',
+      );
+    }
+  }
+
+  async searchTVShows(
+    query: TvShowSearchQueryDto,
+  ): Promise<PaginatedResponseDto<TvShowResponseDto>> {
+    try {
+      const { data } = await this.http.get<
+        TmdbPaginatedResponseDto<TmdbTvShowResponseDto>
+      >(`/search/tv`, {
+        params: this.prepareQueryParams(query),
+      });
+      return this.tmdbResponseMapperService.mapTvShows(data);
     } catch (error) {
       this.logger.error(`Error searching for ${query.query}:`, error);
       throw new InternalServerErrorException(

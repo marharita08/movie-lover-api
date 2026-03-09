@@ -333,6 +333,7 @@ describe('ListService', () => {
       const result = await service.findAll({ page: 1, limit: 10 }, 'user-uuid');
 
       expect(listRepository.findAndCount).toHaveBeenCalledWith({
+        relations: ['file'],
         where: { userId: 'user-uuid' },
         skip: 0,
         take: 10,

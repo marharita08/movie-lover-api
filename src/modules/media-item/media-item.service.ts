@@ -104,6 +104,7 @@ export class MediaItemService {
           );
 
           tvShow.status = tvShowDetails.status;
+          tvShow.posterPath = tvShowDetails.posterPath;
           tvShow.numberOfEpisodes = tvShowDetails.numberOfEpisodes;
           tvShow.nextEpisodeAirDate = tvShowDetails.nextEpisodeToAir?.airDate
             ? new Date(tvShowDetails.nextEpisodeToAir.airDate)

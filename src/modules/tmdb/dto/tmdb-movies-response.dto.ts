@@ -1,3 +1,5 @@
+import { TmdbPaginatedResponseDto } from './tmdb-paginated-response.dto';
+
 export interface TMDBMovieDto {
   adult: boolean;
   backdrop_path: string | null;
@@ -15,9 +17,4 @@ export interface TMDBMovieDto {
   vote_count: number;
 }
 
-export interface TMDBMoviesResponseDto {
-  page: number;
-  results: TMDBMovieDto[];
-  total_pages: number;
-  total_results: number;
-}
+export type TMDBMoviesResponseDto = TmdbPaginatedResponseDto<TMDBMovieDto>;

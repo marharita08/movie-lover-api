@@ -126,14 +126,18 @@ export class ListService {
     page: number;
     totalResults: number;
   }> {
-    const { name, page = 1, limit = 10 } = query;
+    const { name, status, page = 1, limit = 10 } = query;
 
     const where: any = { userId };
     if (name) {
       where.name = ILike(`%${name}%`);
     }
+    if (status) {
+      where.status = status;
+    }
 
     const [data, total] = await this.listRepository.findAndCount({
+      relations: ['file'],
       where,
       skip: (page - 1) * limit,
       take: limit,
@@ -182,7 +186,9 @@ export class ListService {
 
       const BATCH_SIZE = 10;
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        const batch = rows.slice(i, i + BATCH_SIZE);
+        const batch = rows
+          .slice(i, i + BATCH_SIZE)
+          .filter((row) => !row['Title Type']?.includes('Episode'));
         await Promise.all(
           batch.map((row, index) =>
             this.listMediaItemService.add(list.id, row, i + index),
@@ -555,8 +561,6 @@ export class ListService {
     const { page = 1, limit = 10 } = query;
 
     const now = new Date();
-    const oneYearFromNow = new Date();
-    oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
 
     const qb = this.listMediaItemsRepository
       .createQueryBuilder('lmi')
@@ -567,10 +571,7 @@ export class ListService {
       .where('lmi.listId = :listId', { listId })
       .andWhere('media.type = :type', { type: MediaType.TV })
       .andWhere('media.nextEpisodeAirDate IS NOT NULL')
-      .andWhere('media.nextEpisodeAirDate BETWEEN :now AND :oneYearFromNow', {
-        now,
-        oneYearFromNow,
-      })
+      .andWhere('media.nextEpisodeAirDate > :now', { now })
       .orderBy('media.nextEpisodeAirDate', 'ASC')
       .offset((page - 1) * limit)
       .limit(limit);
@@ -583,10 +584,7 @@ export class ListService {
       .where('lmi.listId = :listId', { listId })
       .andWhere('media.type = :type', { type: MediaType.TV })
       .andWhere('media.nextEpisodeAirDate IS NOT NULL')
-      .andWhere('media.nextEpisodeAirDate BETWEEN :now AND :oneYearFromNow', {
-        now,
-        oneYearFromNow,
-      });
+      .andWhere('media.nextEpisodeAirDate > :now', { now });
 
     const total = await countQb.getCount();
 
@@ -659,5 +657,14 @@ export class ListService {
           : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
       );
     }
+  }
+
+  async getListsWithMediaItems(userId: string) {
+    return this.listRepository.find({
+      where: { userId, status: ListStatus.COMPLETED },
+      relations: ['listMediaItems', 'listMediaItems.mediaItem', 'file'],
+      order: { createdAt: 'DESC' },
+      take: 10,
+    });
   }
 }

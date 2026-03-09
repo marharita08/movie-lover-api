@@ -1,3 +1,5 @@
+import { PaginatedResponseDto } from './paginated-response.dto';
+
 export interface MovieDto {
   adult: boolean;
   backdropPath: string | null;
@@ -15,9 +17,4 @@ export interface MovieDto {
   voteCount: number;
 }
 
-export interface MoviesResponseDto {
-  page: number;
-  results: MovieDto[];
-  totalPages: number;
-  totalResults: number;
-}
+export type MoviesResponseDto = PaginatedResponseDto<MovieDto>;
