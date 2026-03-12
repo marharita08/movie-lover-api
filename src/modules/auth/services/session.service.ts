@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { Session, User } from 'src/entities';
+import { Session } from 'src/entities';
 import { UserService } from 'src/modules/user/user.service';
 
 @Injectable()
@@ -15,11 +15,11 @@ export class SessionService {
 
   async getOrCreate(
     id: string,
-    user: User,
+    userId: string,
     refreshToken?: string,
   ): Promise<Session> {
     const sessionInDb = await this.sessionRepository.findOne({
-      where: { id, userId: user.id },
+      where: { id, userId },
     });
 
     if (sessionInDb) {
@@ -28,7 +28,7 @@ export class SessionService {
 
     const session = this.sessionRepository.create({
       id,
-      userId: user.id,
+      userId,
       refreshToken,
     });
     return this.sessionRepository.save(session);

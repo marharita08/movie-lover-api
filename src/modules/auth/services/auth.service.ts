@@ -17,6 +17,7 @@ import { getOtpEmailMessage, OtpPurposeToEmailSubject } from '../const';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
+  GoogleLoginDto,
   LoginDto,
   ResetPasswordDto,
   SendOtpDto,
@@ -26,6 +27,7 @@ import {
   VerifyResetPasswordOtpDto,
 } from '../dto';
 
+import { GoogleAuthService } from './google-auth.service';
 import { SessionService } from './session.service';
 import { TokenService } from './token.service';
 
@@ -39,6 +41,7 @@ export class AuthService {
     private readonly otpService: OtpService,
     private readonly emailService: EmailService,
     private readonly resetPasswordTokenService: ResetPasswordTokenService,
+    private readonly googleAuthService: GoogleAuthService,
   ) {}
 
   async signUp(signUpDto: SignUpDto) {
@@ -90,7 +93,7 @@ export class AuthService {
     });
 
     const sessionId = generateSessionId(user.id, ip, userAgent);
-    const session = await this.sessionService.getOrCreate(sessionId, user);
+    const session = await this.sessionService.getOrCreate(sessionId, user.id);
 
     return await this.tokenService.generateTokensPair(session);
   }
@@ -119,7 +122,7 @@ export class AuthService {
     });
 
     const sessionId = generateSessionId(user.id, ip, userAgent);
-    const session = await this.sessionService.getOrCreate(sessionId, user);
+    const session = await this.sessionService.getOrCreate(sessionId, user.id);
 
     return await this.tokenService.generateTokensPair(session);
   }
@@ -202,5 +205,47 @@ export class AuthService {
     const user = await this.userService.getByEmailOrThrow(email);
     const passwordHash = await this.hashService.hash(password);
     await this.userService.update(user.id, { passwordHash });
+  }
+
+  async googleLogin(
+    googleLoginDto: GoogleLoginDto,
+    ip: string,
+    userAgent: string,
+  ) {
+    const { code } = googleLoginDto;
+    const googleUser = await this.googleAuthService.verifyGoogleToken(code);
+
+    let user: UserDto | null = await this.userService.getByGoogleId(
+      googleUser.googleId,
+    );
+
+    if (!user) {
+      user = await this.userService.getByEmail(googleUser.email);
+
+      if (user) {
+        user = await this.userService.update(user.id, {
+          googleId: googleUser.googleId,
+          isEmailVerified: true,
+        });
+      } else {
+        user = await this.userService.create({
+          email: googleUser.email,
+          name: googleUser.name || 'User',
+          googleId: googleUser.googleId,
+          isEmailVerified: true,
+          lastLoginAt: new Date(),
+          lastActiveAt: new Date(),
+        });
+      }
+    }
+
+    await this.userService.update(user.id, {
+      lastLoginAt: new Date(),
+    });
+
+    const sessionId = generateSessionId(user.id, ip, userAgent);
+    const session = await this.sessionService.getOrCreate(sessionId, user.id);
+
+    return this.tokenService.generateTokensPair(session);
   }
 }

@@ -67,7 +67,7 @@ describe('SessionService', () => {
 
       const result = await service.getOrCreate(
         'session-uuid',
-        user,
+        user.id,
         'refresh-token',
       );
 
@@ -87,7 +87,7 @@ describe('SessionService', () => {
 
       const result = await service.getOrCreate(
         'session-uuid',
-        user,
+        user.id,
         'refresh-token',
       );
 
@@ -107,7 +107,7 @@ describe('SessionService', () => {
       sessionRepository.create.mockReturnValue(newSession);
       sessionRepository.save.mockResolvedValue(newSession);
 
-      await service.getOrCreate('session-uuid', user);
+      await service.getOrCreate('session-uuid', user.id);
 
       expect(sessionRepository.create).toHaveBeenCalledWith({
         id: 'session-uuid',

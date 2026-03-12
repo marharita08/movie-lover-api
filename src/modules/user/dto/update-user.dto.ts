@@ -11,6 +11,10 @@ export class UpdateUserDto {
 
   @IsString()
   @IsOptional()
+  googleId?: string;
+
+  @IsString()
+  @IsOptional()
   passwordHash?: string;
 
   @IsDate()

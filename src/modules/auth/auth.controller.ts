@@ -17,6 +17,7 @@ import { GetUser, Public } from './decorators';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
+  GoogleLoginDto,
   LoginDto,
   ResetPasswordDto,
   SendOtpDto,
@@ -155,5 +156,24 @@ export class AuthController {
     @GetUser('email') email: string,
   ) {
     return this.authService.changePassword(email, changePasswordDto);
+  }
+
+  @Post('google')
+  @Public()
+  async googleLogin(
+    @Body() dto: GoogleLoginDto,
+    @Headers('user-agent') userAgent: string,
+    @Ip() ip: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const { accessToken, refreshToken } = await this.authService.googleLogin(
+      dto,
+      ip,
+      userAgent,
+    );
+
+    response.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
+
+    return { accessToken };
   }
 }
