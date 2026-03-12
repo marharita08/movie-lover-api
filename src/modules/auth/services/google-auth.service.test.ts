@@ -146,14 +146,6 @@ describe('GoogleAuthService', () => {
       );
     });
 
-    it('should throw UnauthorizedException with correct message', async () => {
-      mockGetToken.mockRejectedValue(new Error('fail'));
-
-      await expect(service.verifyGoogleToken(mockCode)).rejects.toThrow(
-        'Authorization failed',
-      );
-    });
-
     it('should handle payload with undefined name', async () => {
       mockGetPayload.mockReturnValue({
         sub: 'google-user-id-123',

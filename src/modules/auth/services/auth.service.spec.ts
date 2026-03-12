@@ -506,8 +506,8 @@ describe('AuthService', () => {
       userService.getByGoogleId.mockResolvedValue(null);
       userService.getByEmail.mockResolvedValue(user as never);
       userService.update
-        .mockResolvedValueOnce(updatedUser as never) // link googleId
-        .mockResolvedValueOnce(updatedUser as never); // lastLoginAt
+        .mockResolvedValueOnce(updatedUser as never)
+        .mockResolvedValueOnce(updatedUser as never);
       mockedGenerateSessionId.mockReturnValue('session-uuid');
       sessionService.getOrCreate.mockResolvedValue(session as never);
       tokenService.generateTokensPair.mockResolvedValue(tokens);
