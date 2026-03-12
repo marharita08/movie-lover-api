@@ -10,6 +10,7 @@ import { UserService } from 'src/modules/user/user.service';
 import * as generateSessionIdUtil from 'src/utils/generate-session-id';
 
 import { AuthService } from './auth.service';
+import { GoogleAuthService } from './google-auth.service';
 import { SessionService } from './session.service';
 import { TokenService } from './token.service';
 
@@ -19,6 +20,7 @@ const mockUserService = () => ({
   getByEmail: jest.fn(),
   getByEmailOrThrow: jest.fn(),
   getById: jest.fn(),
+  getByGoogleId: jest.fn(),
   create: jest.fn(),
   update: jest.fn(),
   delete: jest.fn(),
@@ -51,6 +53,10 @@ const mockEmailService = () => ({
 const mockResetPasswordTokenService = () => ({
   create: jest.fn(),
   verifyAndDelete: jest.fn(),
+});
+
+const mockGoogleAuthService = () => ({
+  verifyGoogleToken: jest.fn(),
 });
 
 const makeUser = (overrides = {}) => ({
@@ -86,6 +92,7 @@ describe('AuthService', () => {
   let mockedGenerateSessionId: jest.MockedFunction<
     typeof generateSessionIdUtil.generateSessionId
   >;
+  let googleAuthService: jest.Mocked<GoogleAuthService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -101,6 +108,7 @@ describe('AuthService', () => {
           provide: ResetPasswordTokenService,
           useFactory: mockResetPasswordTokenService,
         },
+        { provide: GoogleAuthService, useFactory: mockGoogleAuthService },
       ],
     }).compile();
 
@@ -115,6 +123,7 @@ describe('AuthService', () => {
     mockedGenerateSessionId = jest.mocked(
       generateSessionIdUtil.generateSessionId,
     );
+    googleAuthService = module.get(GoogleAuthService);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -204,7 +213,7 @@ describe('AuthService', () => {
       );
       expect(sessionService.getOrCreate).toHaveBeenCalledWith(
         'session-uuid',
-        user,
+        user.id,
       );
       expect(result).toEqual(tokens);
     });
@@ -263,7 +272,7 @@ describe('AuthService', () => {
       );
       expect(sessionService.getOrCreate).toHaveBeenCalledWith(
         'session-uuid',
-        user,
+        user.id,
       );
       expect(result).toEqual(tokens);
     });
@@ -448,6 +457,173 @@ describe('AuthService', () => {
       expect(userService.update).toHaveBeenCalledWith(user.id, {
         passwordHash: 'new_hashed_password',
       });
+    });
+  });
+
+  describe('googleLogin', () => {
+    const googleLoginDto = { code: 'google-auth-code' };
+    const ip = '127.0.0.1';
+    const userAgent = 'Mozilla/5.0';
+
+    const googleUser = {
+      googleId: 'google-id-123',
+      email: 'test@example.com',
+      name: 'Test User',
+    };
+
+    beforeEach(() => {
+      googleAuthService.verifyGoogleToken.mockResolvedValue(googleUser);
+    });
+
+    it('should login existing user found by googleId', async () => {
+      const user = makeUser({ googleId: 'google-id-123' });
+      const session = makeSession();
+      const tokens = makeTokensPair();
+
+      userService.getByGoogleId.mockResolvedValue(user as never);
+      userService.update.mockResolvedValue(user as never);
+      mockedGenerateSessionId.mockReturnValue('session-uuid');
+      sessionService.getOrCreate.mockResolvedValue(session as never);
+      tokenService.generateTokensPair.mockResolvedValue(tokens);
+
+      const result = await service.googleLogin(googleLoginDto, ip, userAgent);
+
+      expect(userService.getByGoogleId).toHaveBeenCalledWith('google-id-123');
+      expect(userService.getByEmail).not.toHaveBeenCalled();
+      expect(userService.create).not.toHaveBeenCalled();
+      expect(result).toEqual(tokens);
+    });
+
+    it('should link googleId to existing user found by email', async () => {
+      const user = makeUser();
+      const updatedUser = makeUser({
+        googleId: 'google-id-123',
+        isEmailVerified: true,
+      });
+      const session = makeSession();
+      const tokens = makeTokensPair();
+
+      userService.getByGoogleId.mockResolvedValue(null);
+      userService.getByEmail.mockResolvedValue(user as never);
+      userService.update
+        .mockResolvedValueOnce(updatedUser as never) // link googleId
+        .mockResolvedValueOnce(updatedUser as never); // lastLoginAt
+      mockedGenerateSessionId.mockReturnValue('session-uuid');
+      sessionService.getOrCreate.mockResolvedValue(session as never);
+      tokenService.generateTokensPair.mockResolvedValue(tokens);
+
+      const result = await service.googleLogin(googleLoginDto, ip, userAgent);
+
+      expect(userService.getByEmail).toHaveBeenCalledWith('test@example.com');
+      expect(userService.update).toHaveBeenCalledWith(
+        user.id,
+        expect.objectContaining({
+          googleId: 'google-id-123',
+          isEmailVerified: true,
+        }),
+      );
+      expect(userService.create).not.toHaveBeenCalled();
+      expect(result).toEqual(tokens);
+    });
+
+    it('should create new user if not found by googleId or email', async () => {
+      const newUser = makeUser({
+        googleId: 'google-id-123',
+        isEmailVerified: true,
+      });
+      const session = makeSession();
+      const tokens = makeTokensPair();
+
+      userService.getByGoogleId.mockResolvedValue(null);
+      userService.getByEmail.mockResolvedValue(null);
+      userService.create.mockResolvedValue(newUser as never);
+      userService.update.mockResolvedValue(newUser as never);
+      mockedGenerateSessionId.mockReturnValue('session-uuid');
+      sessionService.getOrCreate.mockResolvedValue(session as never);
+      tokenService.generateTokensPair.mockResolvedValue(tokens);
+
+      const result = await service.googleLogin(googleLoginDto, ip, userAgent);
+
+      expect(userService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'test@example.com',
+          name: 'Test User',
+          googleId: 'google-id-123',
+          isEmailVerified: true,
+          lastLoginAt: expect.any(Date) as Date,
+          lastActiveAt: expect.any(Date) as Date,
+        }),
+      );
+      expect(result).toEqual(tokens);
+    });
+
+    it('should fallback to "User" when google name is missing', async () => {
+      googleAuthService.verifyGoogleToken.mockResolvedValue({
+        ...googleUser,
+        name: undefined,
+      });
+
+      const newUser = makeUser({ googleId: 'google-id-123' });
+      userService.getByGoogleId.mockResolvedValue(null);
+      userService.getByEmail.mockResolvedValue(null);
+      userService.create.mockResolvedValue(newUser as never);
+      userService.update.mockResolvedValue(newUser as never);
+      sessionService.getOrCreate.mockResolvedValue(makeSession() as never);
+      tokenService.generateTokensPair.mockResolvedValue(makeTokensPair());
+
+      await service.googleLogin(googleLoginDto, ip, userAgent);
+
+      expect(userService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'User' }),
+      );
+    });
+
+    it('should always update lastLoginAt after login', async () => {
+      const user = makeUser({ googleId: 'google-id-123' });
+      userService.getByGoogleId.mockResolvedValue(user as never);
+      userService.update.mockResolvedValue(user as never);
+      sessionService.getOrCreate.mockResolvedValue(makeSession() as never);
+      tokenService.generateTokensPair.mockResolvedValue(makeTokensPair());
+
+      await service.googleLogin(googleLoginDto, ip, userAgent);
+
+      expect(userService.update).toHaveBeenCalledWith(
+        user.id,
+        expect.objectContaining({ lastLoginAt: expect.any(Date) as Date }),
+      );
+    });
+
+    it('should call generateSessionId with correct params', async () => {
+      const user = makeUser({ googleId: 'google-id-123' });
+      userService.getByGoogleId.mockResolvedValue(user as never);
+      userService.update.mockResolvedValue(user as never);
+      mockedGenerateSessionId.mockReturnValue('session-uuid');
+      sessionService.getOrCreate.mockResolvedValue(makeSession() as never);
+      tokenService.generateTokensPair.mockResolvedValue(makeTokensPair());
+
+      await service.googleLogin(googleLoginDto, ip, userAgent);
+
+      expect(mockedGenerateSessionId).toHaveBeenCalledWith(
+        user.id,
+        ip,
+        userAgent,
+      );
+      expect(sessionService.getOrCreate).toHaveBeenCalledWith(
+        'session-uuid',
+        user.id,
+      );
+    });
+
+    it('should throw if verifyGoogleToken fails', async () => {
+      googleAuthService.verifyGoogleToken.mockRejectedValue(
+        new UnauthorizedException('Authorization failed'),
+      );
+
+      await expect(
+        service.googleLogin(googleLoginDto, ip, userAgent),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(userService.getByGoogleId).not.toHaveBeenCalled();
     });
   });
 });

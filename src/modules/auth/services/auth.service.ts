@@ -211,7 +211,7 @@ export class AuthService {
     googleLoginDto: GoogleLoginDto,
     ip: string,
     userAgent: string,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ) {
     const { code } = googleLoginDto;
     const googleUser = await this.googleAuthService.verifyGoogleToken(code);
 
