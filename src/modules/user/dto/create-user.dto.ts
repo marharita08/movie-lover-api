@@ -1,4 +1,11 @@
-import { IsDate, IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsDate,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
@@ -11,8 +18,8 @@ export class CreateUserDto {
   email: string;
 
   @IsString()
-  @IsNotEmpty()
-  passwordHash: string;
+  @IsOptional()
+  passwordHash?: string;
 
   @IsDate()
   @IsNotEmpty()
@@ -21,4 +28,12 @@ export class CreateUserDto {
   @IsDate()
   @IsNotEmpty()
   lastActiveAt: Date;
+
+  @IsString()
+  @IsOptional()
+  googleId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isEmailVerified?: boolean;
 }

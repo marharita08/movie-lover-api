@@ -61,8 +61,8 @@ export class TokenService {
       }
 
       return session;
-    } catch (err) {
-      this.logger.error('Error verifying access token:', err);
+    } catch {
+      this.logger.error('Error verifying access token');
       throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
     }
   }
@@ -86,8 +86,8 @@ export class TokenService {
       }
 
       return session;
-    } catch (err) {
-      this.logger.error('Error verifying refresh token:', err);
+    } catch {
+      this.logger.error('Error verifying refresh token');
       throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
     }
   }

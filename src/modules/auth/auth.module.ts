@@ -12,6 +12,7 @@ import { UserModule } from 'src/modules/user/user.module';
 
 import { AuthController } from './auth.controller';
 import { AuthService, SessionService, TokenService } from './services';
+import { GoogleAuthService } from './services/google-auth.service';
 import { AccessTokenStrategy } from './strategies/access-token.strategy';
 
 @Module({
@@ -25,7 +26,13 @@ import { AccessTokenStrategy } from './strategies/access-token.strategy';
     HashModule,
     ResetPasswordTokenModule,
   ],
-  providers: [AuthService, SessionService, TokenService, AccessTokenStrategy],
+  providers: [
+    AuthService,
+    SessionService,
+    TokenService,
+    AccessTokenStrategy,
+    GoogleAuthService,
+  ],
   controllers: [AuthController],
   exports: [AuthService],
 })

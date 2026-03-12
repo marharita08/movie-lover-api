@@ -23,6 +23,10 @@ export class UserService {
     return this.excludePrivateFields(user);
   }
 
+  async getByGoogleId(googleId: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { googleId } });
+  }
+
   async getByEmail(email: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { email } });
   }

@@ -25,6 +25,9 @@ export class User extends BaseEntity {
   @Column({ type: 'boolean', default: false })
   isEmailVerified: boolean;
 
+  @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
+  googleId?: string;
+
   @OneToMany(() => File, (file) => file.user)
   files: File[];
 
