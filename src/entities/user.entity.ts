@@ -13,8 +13,8 @@ export class User extends BaseEntity {
   @Column({ type: 'varchar', length: 255 })
   email: string;
 
-  @Column({ type: 'varchar', length: 255 })
-  passwordHash: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  passwordHash?: string;
 
   @Column({ type: 'timestamptz' })
   lastLoginAt: Date;
