@@ -43,7 +43,7 @@ import {
         ],
         synchronize: config.get<string>('NODE_ENV') !== 'production',
         migrationsRun: config.get<string>('NODE_ENV') === 'production',
-        migrations: [__dirname + '/../migrations/*.js'],
+        migrations: [__dirname + '/../../migrations/*.js'],
       }),
     }),
   ],
