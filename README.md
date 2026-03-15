@@ -1,98 +1,176 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Movie Lover API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend service for the Movie Lover application — a platform for analyzing your IMDB lists with AI-powered movie and TV show recommendations.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Features
 
-## Description
+- **Authentication & Authorization**
+  - JWT-based authentication with access and refresh tokens
+  - Session management
+  - Email verification via OTP codes
+  - Password reset flow
+  - Google OAuth 2.0 login
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **IMDB List Import**
+  - CSV file upload and parsing
+  - Background processing of imported data
+  - Enrichment with detailed metadata from TMDB API
 
-## Project setup
+- **AI Chat**
+  - Movie and TV show recommendations powered by Google Gemini 2.5 Flash
+  - Personalized suggestions based on your imported IMDB lists
+  - Chat history persistence
 
+- **List Analytics**
+  - Genre, year, country, and production company breakdowns
+  - Rating statistics
+  - Top directors and actors from your lists
+  - Upcoming episodes tracker for TV shows in your lists
+
+- **Caching**
+  - Redis-based caching for TMDB API responses
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Language | TypeScript |
+| Framework | NestJS |
+| Database | PostgreSQL |
+| ORM | TypeORM |
+| Cache | Redis |
+| Auth | JWT, Google OAuth 2.0 |
+| AI | Google Gemini 2.5 Flash |
+| External API | TMDB (The Movie Database) |
+| Email | Brevo |
+| File Storage | Google Cloud Storage |
+| Testing | Jest |
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20+
+- PostgreSQL
+- Redis
+
+### Installation
 ```bash
-$ npm install
+git clone https://github.com/marharita08/movie-lover-api.git
+cd movie-lover-api
+npm install
 ```
 
-## Compile and run the project
+### Environment Variables
 
-```bash
-# development
-$ npm run start
+Create a `.env` file in the root directory:
+```env
+# App
+NODE_ENV=development
+PORT=3001
+FRONTEND_URL=http://localhost:5173
 
-# watch mode
-$ npm run start:dev
+# JWT
+JWT_SECRET=your_jwt_secret
+JWT_REFRESH_SECRET=your_jwt_refresh_secret
+JWT_TTL=30m
+JWT_REFRESH_TTL=15d
 
-# production mode
-$ npm run start:prod
+# Email (Brevo)
+BREVO_API_KEY=your_brevo_api_key
+BREVO_FROM_EMAIL=your_email@example.com
+BREVO_FROM_NAME=Movie Lover App
+
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=your_password
+DB_NAME=movie-lover
+
+# TMDB
+TMDB_URL=https://api.themoviedb.org/3/
+TMDB_TOKEN=your_tmdb_token
+
+# Google Cloud Storage
+GCP_PROJECT_ID=your_project_id
+GCP_BUCKET_NAME=your_bucket_name
+GCP_CLIENT_EMAIL=your_client_email
+GCP_PRIVATE_KEY=your_private_key
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+CACHE_TTL=86400
+
+# Gemini
+GEMINI_API_KEY=your_gemini_api_key
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
-## Run tests
-
+### Running the App
 ```bash
-# unit tests
-$ npm run test
+# Development
+npm run start:dev
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+# Production
+npm run build
+npm run start:prod
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
+### Database Migrations
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Generate migration
+npm run migration:generate -- src/migrations/MigrationName
+
+# Run migrations
+npm run migration:run
+
+# Revert last migration
+npm run migration:revert
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### Running with Docker
+```bash
+docker compose up --build
+```
 
-## Resources
+### Tests
+```bash
+# Unit tests
+npm run test
 
-Check out a few resources that may come in handy when working with NestJS:
+# Test coverage
+npm run test:cov
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Project Structure
+```
+src/
+├── const/             # Application constants
+├── entities/          # TypeORM entities
+├── migrations/        # Database migrations
+├── modules/
+│   ├── ai/            # Gemini AI integration
+│   ├── auth/          # Authentication & authorization
+│   ├── chat/          # AI chat
+│   ├── csv-parser/    # CSV parsing
+│   ├── email/         # Email service
+│   ├── file/          # File upload & storage
+│   ├── hash/          # Password hashing
+│   ├── list/          # IMDB list management & analytics
+│   ├── list-media-item/
+│   ├── media-item/    # Movie & TV show data
+│   ├── media-person/  # Media cast & crew relations
+│   ├── otp/           # One-time passwords
+│   ├── person/        # People (actors, directors)
+│   ├── reset-password-token/
+│   ├── storage/       # Google Cloud Storage integration
+│   ├── tmdb/          # TMDB API integration
+│   ├── typeorm/       # Database configuration
+│   └── user/          # User management
+└── utils/
+```
