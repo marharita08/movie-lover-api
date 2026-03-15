@@ -113,7 +113,8 @@ export class ListService {
     });
 
     const savedList = await this.listRepository.save(list);
-    await this.processList(savedList.id);
+    void this.processList(savedList.id);
+
     return savedList;
   }
 
