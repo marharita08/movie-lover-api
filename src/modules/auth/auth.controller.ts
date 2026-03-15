@@ -32,7 +32,7 @@ const COOKIE_EXPIRE_TIME = 15 * 24 * 60 * 60 * 1000; // 15 days
 const COOKIE_OPTIONS: CookieOptions = {
   httpOnly: true,
   secure: true,
-  sameSite: 'strict',
+  sameSite: 'none',
   maxAge: COOKIE_EXPIRE_TIME,
 };
 
