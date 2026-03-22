@@ -23,13 +23,21 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
       isGlobal: true,
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        store: await redisStore({
-          host: configService.get<string>('REDIS_HOST'),
-          port: configService.get<number>('REDIS_PORT'),
-        }),
-        ttl: configService.get<number>('CACHE_TTL'),
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const host = configService.get<string>('REDIS_HOST');
+        const port = configService.get<number>('REDIS_PORT');
+
+        console.log(`Connecting to Redis at ${host}:${port}`);
+
+        const store = await redisStore({ host, port });
+
+        console.log(`Redis store created:`, JSON.stringify(store));
+
+        return {
+          store,
+          ttl: configService.get<number>('CACHE_TTL'),
+        };
+      },
     }),
     ScheduleModule.forRoot(),
     AuthModule,
