@@ -27,11 +27,16 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
         const host = configService.get<string>('REDIS_HOST');
         const port = configService.get<number>('REDIS_PORT');
 
-        console.log(`Connecting to Redis at ${host}:${port}`);
-
         const store = await redisStore({ host, port });
 
-        console.log(`Redis store created:`, JSON.stringify(store));
+        await new Promise<void>((resolve, reject) => {
+          const client = (store as any).client;
+          if (client.status === 'ready') return resolve();
+          client.once('ready', resolve);
+          client.once('error', reject);
+        });
+
+        console.log('Redis connected!');
 
         return {
           store,
