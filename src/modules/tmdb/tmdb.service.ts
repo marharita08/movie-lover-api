@@ -52,6 +52,9 @@ export class TmdbService {
     private readonly configService: ConfigService,
     private readonly tmdbResponseMapperService: TmdbResponseMapperService,
   ) {
+    this.logger.log(
+      `Cache store: ${(cacheManager as any).store?.name || (cacheManager as any).store?.constructor?.name}`,
+    );
     const token = this.configService.get<string>('TMDB_TOKEN');
     const baseUrl = this.configService.get<string>('TMDB_URL');
 
@@ -199,6 +202,7 @@ export class TmdbService {
 
   async getTVShowDetails(tvShowId: number): Promise<TvShowDetailsResponseDto> {
     const cacheKey = `tv:${tvShowId}`;
+    console.log(this.cacheManager);
 
     const cached = await this.cacheManager.get(cacheKey);
     this.logger.log(`Cache lookup for ${cacheKey}: ${cached ? 'HIT' : 'MISS'}`);
