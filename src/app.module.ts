@@ -25,10 +25,8 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         store: await redisStore({
-          socket: {
-            host: configService.get<string>('REDIS_HOST'),
-            port: configService.get<number>('REDIS_PORT'),
-          },
+          host: configService.get<string>('REDIS_HOST'),
+          port: configService.get<number>('REDIS_PORT'),
         }),
         ttl: configService.get<number>('CACHE_TTL'),
       }),
