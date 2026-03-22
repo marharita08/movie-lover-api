@@ -201,11 +201,14 @@ export class TmdbService {
     const cacheKey = `tv:${tvShowId}`;
 
     const cached = await this.cacheManager.get(cacheKey);
+    this.logger.log(`Cache lookup for ${cacheKey}: ${cached ? 'HIT' : 'MISS'}`);
     if (cached) {
+      this.logger.log(`Returning cached data for ${cacheKey}`);
       return cached as TvShowDetailsResponseDto;
     }
 
     try {
+      this.logger.log(`Fetching from TMDB for ${cacheKey}`);
       const { data } = await this.http.get<TmdbTvShowDetailsResponseDto>(
         `/tv/${tvShowId}`,
         {
@@ -214,8 +217,12 @@ export class TmdbService {
       );
 
       const mapped = this.tmdbResponseMapperService.mapTvShowDetails(data);
+      this.logger.log(
+        `Next episode air date for ${cacheKey}: ${mapped.nextEpisodeToAir?.airDate}`,
+      );
 
       await this.cacheManager.set(cacheKey, mapped);
+      this.logger.log(`Cache set for ${cacheKey}`);
 
       return mapped;
     } catch (error) {

@@ -23,7 +23,7 @@ export class PersonService {
     try {
       const orphanedPeople = await this.personRepository
         .createQueryBuilder('person')
-        .leftJoin('person.mediaPeople', 'mediaPerson')
+        .leftJoin('person.mediaPerson', 'mediaPerson')
         .where('mediaPerson.id IS NULL')
         .getMany();
 
