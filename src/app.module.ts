@@ -1,9 +1,9 @@
+import KeyvRedis from '@keyv/redis';
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
-import { redisStore } from 'cache-manager-ioredis-yet';
 
 import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -23,26 +23,14 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
       isGlobal: true,
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => {
-        const host = configService.get<string>('REDIS_HOST');
-        const port = configService.get<number>('REDIS_PORT');
-
-        const store = await redisStore({ host, port });
-
-        await new Promise<void>((resolve, reject) => {
-          const client = (store as any).client;
-          if (client.status === 'ready') return resolve();
-          client.once('ready', resolve);
-          client.once('error', reject);
-        });
-
-        console.log('Redis connected!');
-
-        return {
-          store,
-          ttl: configService.get<number>('CACHE_TTL'),
-        };
-      },
+      useFactory: (configService: ConfigService) => ({
+        stores: [
+          new KeyvRedis(
+            `redis://${configService.get('REDIS_HOST')}:${configService.get('REDIS_PORT')}`,
+          ),
+        ],
+        ttl: configService.get<number>('CACHE_TTL'),
+      }),
     }),
     ScheduleModule.forRoot(),
     AuthModule,
