@@ -562,6 +562,7 @@ export class ListService {
     const { page = 1, limit = 10 } = query;
 
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
 
     const qb = this.listMediaItemsRepository
       .createQueryBuilder('lmi')
@@ -572,7 +573,7 @@ export class ListService {
       .where('lmi.listId = :listId', { listId })
       .andWhere('media.type = :type', { type: MediaType.TV })
       .andWhere('media.nextEpisodeAirDate IS NOT NULL')
-      .andWhere('media.nextEpisodeAirDate > :now', { now })
+      .andWhere('media.nextEpisodeAirDate >= :now', { now })
       .orderBy('media.nextEpisodeAirDate', 'ASC')
       .offset((page - 1) * limit)
       .limit(limit);
@@ -585,7 +586,7 @@ export class ListService {
       .where('lmi.listId = :listId', { listId })
       .andWhere('media.type = :type', { type: MediaType.TV })
       .andWhere('media.nextEpisodeAirDate IS NOT NULL')
-      .andWhere('media.nextEpisodeAirDate > :now', { now });
+      .andWhere('media.nextEpisodeAirDate >= :now', { now });
 
     const total = await countQb.getCount();
 

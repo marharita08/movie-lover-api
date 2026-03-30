@@ -144,7 +144,7 @@ describe('PersonService', () => {
         'person',
       );
       expect(qb.leftJoin).toHaveBeenCalledWith(
-        'person.mediaPeople',
+        'person.mediaPerson',
         'mediaPerson',
       );
       expect(qb.where).toHaveBeenCalledWith('mediaPerson.id IS NULL');
