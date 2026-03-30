@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Between, In, MoreThan, Repository } from 'typeorm';
 
 import { MediaItem, MediaType, PersonRole } from 'src/entities';
 import { MediaPersonService } from 'src/modules/media-person/media-person.service';
@@ -65,8 +65,61 @@ export class MediaItemService {
     }
   }
 
-  private async updateActiveTVShows() {
-    this.logger.log('Updating active TV shows');
+  @Cron(CronExpression.EVERY_3_HOURS)
+  async updateHotTVShows() {
+    this.logger.log('Updating HOT TV shows');
+
+    const BATCH_SIZE = 20;
+    let offset = 0;
+    let totalProcessed = 0;
+    let hasMore = true;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    while (hasMore) {
+      const shows = await this.mediaItemRepository.find({
+        where: {
+          type: MediaType.TV,
+          status: In(['Returning Series', 'In Production']),
+          nextEpisodeAirDate: Between(yesterday, tomorrow),
+        },
+        take: BATCH_SIZE,
+        skip: offset,
+        order: { id: 'ASC' },
+      });
+
+      if (shows.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      const updatePromises = shows.map((tvShow) =>
+        this.updateSingleShow(tvShow),
+      );
+
+      await Promise.all(updatePromises);
+
+      totalProcessed += shows.length;
+      offset += BATCH_SIZE;
+
+      if (shows.length < BATCH_SIZE) {
+        hasMore = false;
+      }
+    }
+
+    this.logger.log(`Completed HOT update: ${totalProcessed}`);
+  }
+
+  @Cron(CronExpression.EVERY_WEEK)
+  async updatePlannedTVShows() {
+    this.logger.log('Updating PLANNED TV shows');
 
     const BATCH_SIZE = 20;
     let offset = 0;
@@ -74,67 +127,112 @@ export class MediaItemService {
     let hasMore = true;
 
     while (hasMore) {
-      const activeTVShows = await this.mediaItemRepository.find({
+      const shows = await this.mediaItemRepository.find({
         where: {
           type: MediaType.TV,
-          status: In(['Returning Series', 'In Production', 'Planned']),
+          status: 'Planned',
         },
         take: BATCH_SIZE,
         skip: offset,
+        order: { id: 'ASC' },
       });
 
-      if (activeTVShows.length === 0) {
+      if (shows.length === 0) {
         hasMore = false;
         break;
       }
 
-      this.logger.log(
-        `Processing batch: ${activeTVShows.length} TV shows (offset: ${offset})`,
+      const updatePromises = shows.map((tvShow) =>
+        this.updateSingleShow(tvShow),
       );
-
-      const updatePromises = activeTVShows.map(async (tvShow) => {
-        try {
-          if (!tvShow.tmdbId) {
-            this.logger.warn(`TV show ${tvShow.id} has no TMDB ID, skipping`);
-            return;
-          }
-
-          const tvShowDetails = await this.tmdbService.getTVShowDetails(
-            tvShow.tmdbId,
-          );
-
-          tvShow.status = tvShowDetails.status;
-          tvShow.posterPath = tvShowDetails.posterPath;
-          tvShow.numberOfEpisodes = tvShowDetails.numberOfEpisodes;
-          tvShow.nextEpisodeAirDate = tvShowDetails.nextEpisodeToAir?.airDate
-            ? new Date(tvShowDetails.nextEpisodeToAir.airDate)
-            : null;
-          tvShow.lastSyncAt = new Date();
-
-          await this.mediaItemRepository.save(tvShow);
-
-          this.logger.log(
-            `Updated TV show ${tvShow.title} (ID: ${tvShow.id}) - Status: ${tvShow.status}, Episodes: ${tvShow.numberOfEpisodes}`,
-          );
-        } catch (error) {
-          this.logger.error(
-            `Error updating TV show ${tvShow.id} (${tvShow.title}):`,
-            error,
-          );
-        }
-      });
 
       await Promise.all(updatePromises);
 
-      totalProcessed += activeTVShows.length;
+      totalProcessed += shows.length;
       offset += BATCH_SIZE;
 
-      if (activeTVShows.length < BATCH_SIZE) {
+      if (shows.length < BATCH_SIZE) {
         hasMore = false;
       }
     }
 
-    this.logger.log(`Completed updating ${totalProcessed} TV shows`);
+    this.logger.log(`Completed PLANNED update: ${totalProcessed}`);
+  }
+
+  private async updateActiveTVShows() {
+    this.logger.log('Updating ACTIVE TV shows');
+
+    const BATCH_SIZE = 20;
+    let offset = 0;
+    let totalProcessed = 0;
+    let hasMore = true;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    while (hasMore) {
+      const shows = await this.mediaItemRepository.find({
+        where: {
+          type: MediaType.TV,
+          status: In(['Returning Series', 'In Production']),
+          nextEpisodeAirDate: MoreThan(tomorrow),
+        },
+        take: BATCH_SIZE,
+        skip: offset,
+        order: { id: 'ASC' },
+      });
+
+      if (shows.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      const updatePromises = shows.map((tvShow) =>
+        this.updateSingleShow(tvShow),
+      );
+
+      await Promise.all(updatePromises);
+
+      totalProcessed += shows.length;
+      offset += BATCH_SIZE;
+
+      if (shows.length < BATCH_SIZE) {
+        hasMore = false;
+      }
+    }
+
+    this.logger.log(`Completed ACTIVE update: ${totalProcessed}`);
+  }
+
+  private async updateSingleShow(tvShow: MediaItem) {
+    try {
+      if (!tvShow.tmdbId) {
+        this.logger.warn(`TV show ${tvShow.id} has no TMDB ID, skipping`);
+        return;
+      }
+
+      const details = await this.tmdbService.getTVShowDetails(tvShow.tmdbId);
+
+      tvShow.status = details.status;
+      tvShow.posterPath = details.posterPath;
+      tvShow.numberOfEpisodes = details.numberOfEpisodes;
+      tvShow.nextEpisodeAirDate = details.nextEpisodeToAir?.airDate
+        ? new Date(details.nextEpisodeToAir.airDate)
+        : null;
+      tvShow.lastSyncAt = new Date();
+
+      await this.mediaItemRepository.save(tvShow);
+
+      this.logger.log(`Updated TV show ${tvShow.title} (ID: ${tvShow.id})`);
+    } catch (error) {
+      this.logger.error(
+        `Error updating TV show ${tvShow.id} (${tvShow.title})`,
+        error,
+      );
+    }
   }
 
   private async updateActiveMovies() {
@@ -158,6 +256,7 @@ export class MediaItemService {
         },
         take: BATCH_SIZE,
         skip: offset,
+        order: { id: 'ASC' },
       });
 
       if (activeMovies.length === 0) {
