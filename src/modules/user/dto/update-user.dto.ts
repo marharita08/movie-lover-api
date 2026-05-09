@@ -1,4 +1,12 @@
-import { IsBoolean, IsDate, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsDate,
+  IsEnum,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+
+import { Language } from 'src/entities';
 
 export class UpdateUserDto {
   @IsString()
@@ -28,4 +36,8 @@ export class UpdateUserDto {
   @IsBoolean()
   @IsOptional()
   isEmailVerified?: boolean;
+
+  @IsEnum(Language)
+  @IsOptional()
+  language?: Language;
 }

@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 
 import {
+  Language,
   List,
   ListMediaItem,
   ListStatus,
@@ -19,6 +20,8 @@ import {
 import { CsvParserService } from 'src/modules/csv-parser/csv-parser.service';
 import { FileService } from 'src/modules/file/file.service';
 import { ListMediaItemService } from 'src/modules/list-media-item/list-media-item.service';
+
+import { UserDto } from '../user/dto';
 
 import {
   CreateListDto,
@@ -99,21 +102,21 @@ export class ListService {
     this.logger.log(`Completed deleting ${totalProcessed} failed lists`);
   }
 
-  async create(dto: CreateListDto, userId: string) {
+  async create(dto: CreateListDto, user: UserDto) {
     const file = await this.fileService.findOne(dto.fileId);
 
-    if (!file || file.userId !== userId) {
+    if (!file || file.userId !== user.id) {
       throw new ForbiddenException('File not found or access denied');
     }
 
     const list = this.listRepository.create({
       name: dto.name,
       fileId: dto.fileId,
-      userId,
+      userId: user.id,
     });
 
     const savedList = await this.listRepository.save(list);
-    void this.processList(savedList.id);
+    void this.processList(savedList.id, user.language || Language.ENGLISH);
 
     return savedList;
   }
@@ -171,7 +174,7 @@ export class ListService {
     await this.listRepository.delete(list.id);
   }
 
-  private async processList(listId: string): Promise<void> {
+  private async processList(listId: string, language: Language): Promise<void> {
     try {
       const list = await this.listRepository.findOne({ where: { id: listId } });
       if (!list) return;
@@ -192,7 +195,7 @@ export class ListService {
           .filter((row) => !row['Title Type']?.includes('Episode'));
         await Promise.all(
           batch.map((row, index) =>
-            this.listMediaItemService.add(list.id, row, i + index),
+            this.listMediaItemService.add(list.id, row, i + index, language),
           ),
         );
 

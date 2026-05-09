@@ -4,7 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
-import { OtpPurpose } from 'src/entities';
+import { Language, OtpPurpose } from 'src/entities';
 import { EmailService } from 'src/modules/email/email.service';
 import { HashService } from 'src/modules/hash/hash.service';
 import { OtpService } from 'src/modules/otp/otp.service';
@@ -102,7 +102,11 @@ export class AuthService {
     loginDto: LoginDto,
     ip: string,
     userAgent: string,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    language: Language;
+  }> {
     const { email, password } = loginDto;
     const user = await this.userService.getByEmail(email);
     if (!user || !user.passwordHash) {
@@ -124,7 +128,9 @@ export class AuthService {
     const sessionId = generateSessionId(user.id, ip, userAgent);
     const session = await this.sessionService.getOrCreate(sessionId, user.id);
 
-    return await this.tokenService.generateTokensPair(session);
+    const tokens = await this.tokenService.generateTokensPair(session);
+
+    return { ...tokens, language: user.language };
   }
 
   public async refresh(refreshToken: string) {
@@ -246,6 +252,8 @@ export class AuthService {
     const sessionId = generateSessionId(user.id, ip, userAgent);
     const session = await this.sessionService.getOrCreate(sessionId, user.id);
 
-    return this.tokenService.generateTokensPair(session);
+    const tokens = await this.tokenService.generateTokensPair(session);
+
+    return { ...tokens, language: user.language };
   }
 }

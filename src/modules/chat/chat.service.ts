@@ -14,6 +14,7 @@ import { PaginatedResponseDto } from 'src/modules/tmdb/dto';
 import { AiService } from '../ai/ai.service';
 import { ListService } from '../list/list.service';
 import { TmdbService } from '../tmdb/tmdb.service';
+import { UserDto } from '../user/dto';
 
 import { WELCOME_MESSAGE } from './const';
 import { ChatHistoryQueryDto } from './dto';
@@ -30,21 +31,21 @@ export class ChatService {
     private readonly tmdbService: TmdbService,
   ) {}
 
-  async processUserMessage(userId: string, message: string) {
+  async processUserMessage(user: UserDto, message: string) {
     const userLists = await this.listService.findAll(
       { status: ListStatus.COMPLETED, page: 1, limit: 10 },
-      userId,
+      user.id,
     );
 
     const userChatMessage = this.chatMessageRepository.create({
-      userId,
+      userId: user.id,
       text: message,
       author: MessageAuthor.USER,
       mediaItems: null,
     });
     await this.chatMessageRepository.save(userChatMessage);
 
-    const chatHistory = await this.getChatHistory(userId, {
+    const chatHistory = await this.getChatHistory(user.id, {
       page: 1,
       limit: 11,
     });
@@ -61,6 +62,7 @@ export class ChatService {
             const movies = await this.tmdbService.searchMovies({
               query: recommendation.title,
               year: recommendation.year,
+              language: user.language,
             });
 
             if (!movies.results || movies.results.length === 0) {
@@ -80,6 +82,7 @@ export class ChatService {
             const tvShows = await this.tmdbService.searchTVShows({
               query: recommendation.title,
               year: recommendation.year,
+              language: user.language,
             });
 
             if (!tvShows.results || tvShows.results.length === 0) {
@@ -122,7 +125,7 @@ export class ChatService {
 
     const isAnySuccess = successfulMediaItems.length > 0;
     const aiChatMessage = this.chatMessageRepository.create({
-      userId,
+      userId: user.id,
       text: isAnySuccess
         ? aiResponse.text
         : 'An error occurred while generating recommendations. Please try again.',

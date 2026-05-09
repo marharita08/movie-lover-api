@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, MoreThan, Repository } from 'typeorm';
 
-import { MediaItem, MediaType, PersonRole } from 'src/entities';
+import { Language, MediaItem, MediaType, PersonRole } from 'src/entities';
 import { MediaPersonService } from 'src/modules/media-person/media-person.service';
 import { TmdbService } from 'src/modules/tmdb/tmdb.service';
 
@@ -308,7 +308,7 @@ export class MediaItemService {
     this.logger.log(`Completed updating ${totalProcessed} movies`);
   }
 
-  async getOrCreate(row: IMDBRow) {
+  async getOrCreate(row: IMDBRow, language: Language) {
     let mediaItem = await this.mediaItemRepository.findOne({
       where: { imdbId: row.Const },
     });
@@ -325,7 +325,10 @@ export class MediaItemService {
         lastSyncAt: new Date(),
       });
 
-      const tmdbData = await this.tmdbService.findMediaByImdbId(row.Const);
+      const tmdbData = await this.tmdbService.findMediaByImdbId(
+        row.Const,
+        language,
+      );
 
       if (tmdbData) {
         mediaItem.type = tmdbData.type;
@@ -335,6 +338,7 @@ export class MediaItemService {
           try {
             const movieDetails = await this.tmdbService.movieDetails(
               tmdbData.data.id,
+              language,
             );
             mediaItem.countries = movieDetails.productionCountries.map(
               (country) => country.iso31661,
@@ -354,6 +358,7 @@ export class MediaItemService {
           try {
             const tvShowDetails = await this.tmdbService.getTVShowDetails(
               tmdbData.data.id,
+              language,
             );
             mediaItem.countries = tvShowDetails.productionCountries.map(
               (country) => country.iso31661,
@@ -379,8 +384,11 @@ export class MediaItemService {
 
         const credits =
           tmdbData.type === MediaType.MOVIE
-            ? await this.tmdbService.getMovieCredits(tmdbData.data.id)
-            : await this.tmdbService.getTVShowCredits(tmdbData.data.id);
+            ? await this.tmdbService.getMovieCredits(tmdbData.data.id, language)
+            : await this.tmdbService.getTVShowCredits(
+                tmdbData.data.id,
+                language,
+              );
 
         if (credits) {
           const directors = this.tmdbService.getDirectors(credits);

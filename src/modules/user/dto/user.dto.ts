@@ -1,4 +1,13 @@
-import { IsDate, IsEmail, IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import {
+  IsDate,
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsString,
+  IsUUID,
+} from 'class-validator';
+
+import { Language } from 'src/entities';
 
 export class UserDto {
   @IsUUID()
@@ -29,4 +38,8 @@ export class UserDto {
   @IsDate()
   @IsNotEmpty()
   updatedAt: Date;
+
+  @IsEnum(Language)
+  @IsNotEmpty()
+  language: Language;
 }
