@@ -81,6 +81,12 @@ const makeFile = (overrides = {}) => ({
   ...overrides,
 });
 
+const makeUser = (overrides = {}) => ({
+  id: 'user-uuid',
+  language: 'en-US',
+  ...overrides,
+});
+
 const makeQueryBuilder = (rawResult: unknown = [], extraMethods = {}) => ({
   innerJoin: jest.fn().mockReturnThis(),
   select: jest.fn().mockReturnThis(),
@@ -150,7 +156,10 @@ describe('ListService', () => {
       fileService.findOne.mockResolvedValue(null as never);
 
       await expect(
-        service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid'),
+        service.create(
+          { name: 'List', fileId: 'file-uuid' },
+          makeUser() as never,
+        ),
       ).rejects.toThrow(ForbiddenException);
 
       expect(listRepository.create).not.toHaveBeenCalled();
@@ -162,7 +171,10 @@ describe('ListService', () => {
       );
 
       await expect(
-        service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid'),
+        service.create(
+          { name: 'List', fileId: 'file-uuid' },
+          makeUser() as never,
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -177,7 +189,7 @@ describe('ListService', () => {
 
       const result = await service.create(
         { name: 'List', fileId: 'file-uuid' },
-        'user-uuid',
+        makeUser() as never,
       );
 
       expect(listRepository.create).toHaveBeenCalledWith({
@@ -211,7 +223,10 @@ describe('ListService', () => {
       csvParserService.parseAndValidate.mockResolvedValue(rows as never);
       listMediaItemService.add.mockResolvedValue(undefined);
 
-      await service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid');
+      await service.create(
+        { name: 'List', fileId: 'file-uuid' },
+        makeUser() as never,
+      );
       await flushPromises();
 
       expect(fileService.download).toHaveBeenCalledWith(list.fileId);
@@ -234,7 +249,10 @@ describe('ListService', () => {
       csvParserService.parseAndValidate.mockResolvedValue(rows as never);
       listMediaItemService.add.mockResolvedValue(undefined);
 
-      await service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid');
+      await service.create(
+        { name: 'List', fileId: 'file-uuid' },
+        makeUser() as never,
+      );
       await flushPromises();
 
       expect(listMediaItemService.add).toHaveBeenCalledTimes(3);
@@ -242,16 +260,19 @@ describe('ListService', () => {
         list.id,
         rows[0],
         0,
+        'en-US',
       );
       expect(listMediaItemService.add).toHaveBeenCalledWith(
         list.id,
         rows[1],
         1,
+        'en-US',
       );
       expect(listMediaItemService.add).toHaveBeenCalledWith(
         list.id,
         rows[2],
         2,
+        'en-US',
       );
     });
 
@@ -267,7 +288,10 @@ describe('ListService', () => {
       csvParserService.parseAndValidate.mockResolvedValue(rows as never);
       listMediaItemService.add.mockResolvedValue(undefined);
 
-      await service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid');
+      await service.create(
+        { name: 'List', fileId: 'file-uuid' },
+        makeUser() as never,
+      );
       await flushPromises();
 
       expect(listMediaItemService.add).toHaveBeenCalledTimes(25);
@@ -275,21 +299,25 @@ describe('ListService', () => {
         list.id,
         rows[0],
         0,
+        'en-US',
       );
       expect(listMediaItemService.add).toHaveBeenCalledWith(
         list.id,
         rows[9],
         9,
+        'en-US',
       );
       expect(listMediaItemService.add).toHaveBeenCalledWith(
         list.id,
         rows[10],
         10,
+        'en-US',
       );
       expect(listMediaItemService.add).toHaveBeenCalledWith(
         list.id,
         rows[24],
         24,
+        'en-US',
       );
     });
 
@@ -300,7 +328,10 @@ describe('ListService', () => {
       csvParserService.parseAndValidate.mockResolvedValue([]);
       listRepository.save.mockResolvedValue(list);
 
-      await service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid');
+      await service.create(
+        { name: 'List', fileId: 'file-uuid' },
+        makeUser() as never,
+      );
       await flushPromises();
 
       const lastSaveCall = listRepository.save.mock.calls.at(-1)?.[0] as List;
@@ -313,7 +344,10 @@ describe('ListService', () => {
       fileService.download.mockRejectedValue(new Error('Download failed'));
       listRepository.update.mockResolvedValue(undefined as never);
 
-      await service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid');
+      await service.create(
+        { name: 'List', fileId: 'file-uuid' },
+        makeUser() as never,
+      );
       await flushPromises();
 
       expect(listRepository.update).toHaveBeenCalledWith(list.id, {
@@ -326,7 +360,10 @@ describe('ListService', () => {
       setupCreate();
       listRepository.findOne.mockResolvedValueOnce(null as never);
 
-      await service.create({ name: 'List', fileId: 'file-uuid' }, 'user-uuid');
+      await service.create(
+        { name: 'List', fileId: 'file-uuid' },
+        makeUser() as never,
+      );
       await flushPromises();
 
       expect(fileService.download).not.toHaveBeenCalled();

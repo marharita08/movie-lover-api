@@ -137,7 +137,7 @@ describe('MediaItemService', () => {
       const existing = makeMediaItem();
       mediaItemRepository.findOne.mockResolvedValue(existing);
 
-      const result = await service.getOrCreate(makeImdbRow());
+      const result = await service.getOrCreate(makeImdbRow(), 'en-US' as never);
 
       expect(mediaItemRepository.findOne).toHaveBeenCalledWith({
         where: { imdbId: 'tt1234567' },
@@ -153,7 +153,7 @@ describe('MediaItemService', () => {
       tmdbService.findMediaByImdbId.mockResolvedValue(null);
       mediaItemRepository.save.mockResolvedValue(mediaItem);
 
-      await service.getOrCreate(makeImdbRow());
+      await service.getOrCreate(makeImdbRow(), 'en-US' as never);
 
       expect(mediaItemRepository.create).toHaveBeenCalledWith({
         imdbId: 'tt1234567',
@@ -174,7 +174,7 @@ describe('MediaItemService', () => {
       tmdbService.findMediaByImdbId.mockResolvedValue(null);
       mediaItemRepository.save.mockResolvedValue(mediaItem);
 
-      await service.getOrCreate(makeImdbRow({ Genres: '' }));
+      await service.getOrCreate(makeImdbRow({ Genres: '' }), 'en-US' as never);
 
       expect(mediaItemRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ genres: [] }),
@@ -194,6 +194,7 @@ describe('MediaItemService', () => {
 
       await service.getOrCreate(
         makeImdbRow({ Year: '', 'IMDb Rating': '', 'Runtime (mins)': '' }),
+        'en-US' as never,
       );
 
       expect(mediaItemRepository.create).toHaveBeenCalledWith(
@@ -212,7 +213,7 @@ describe('MediaItemService', () => {
       tmdbService.findMediaByImdbId.mockResolvedValue(null);
       mediaItemRepository.save.mockResolvedValue(mediaItem);
 
-      const result = await service.getOrCreate(makeImdbRow());
+      const result = await service.getOrCreate(makeImdbRow(), 'en-US' as never);
 
       expect(mediaItemRepository.save).toHaveBeenCalledWith(mediaItem);
       expect(tmdbService.getMovieCredits).not.toHaveBeenCalled();
@@ -237,7 +238,7 @@ describe('MediaItemService', () => {
       tmdbService.getTopActors.mockReturnValue(topActors as never);
       mediaPersonService.saveAll.mockResolvedValue(undefined);
 
-      await service.getOrCreate(makeImdbRow());
+      await service.getOrCreate(makeImdbRow(), 'en-US' as never);
 
       expect(mediaItem.type).toBe(MediaType.MOVIE);
       expect(mediaItem.tmdbId).toBe(100);
@@ -245,9 +246,9 @@ describe('MediaItemService', () => {
       expect(mediaItem.status).toBe('Released');
       expect(mediaItem.countries).toEqual(['US', 'CA']);
       expect(mediaItem.companies).toEqual(['Warner Bros.', 'Legendary']);
-      expect(tmdbService.movieDetails).toHaveBeenCalledWith(100);
+      expect(tmdbService.movieDetails).toHaveBeenCalledWith(100, 'en-US');
       expect(mediaItemRepository.save).toHaveBeenCalledWith(mediaItem);
-      expect(tmdbService.getMovieCredits).toHaveBeenCalledWith(100);
+      expect(tmdbService.getMovieCredits).toHaveBeenCalledWith(100, 'en-US');
       expect(mediaPersonService.saveAll).toHaveBeenCalledWith(
         mediaItem.id,
         directors,
@@ -275,7 +276,9 @@ describe('MediaItemService', () => {
       tmdbService.getTopActors.mockReturnValue([]);
       mediaPersonService.saveAll.mockResolvedValue(undefined);
 
-      await expect(service.getOrCreate(makeImdbRow())).resolves.not.toThrow();
+      await expect(
+        service.getOrCreate(makeImdbRow(), 'en-US' as never),
+      ).resolves.not.toThrow();
 
       expect(mediaItemRepository.save).toHaveBeenCalled();
     });
@@ -296,15 +299,18 @@ describe('MediaItemService', () => {
       tmdbService.getTopActors.mockReturnValue([]);
       mediaPersonService.saveAll.mockResolvedValue(undefined);
 
-      await service.getOrCreate(makeImdbRow({ 'Title Type': 'tv series' }));
+      await service.getOrCreate(
+        makeImdbRow({ 'Title Type': 'tv series' }),
+        'en-US' as never,
+      );
 
-      expect(tmdbService.getTVShowDetails).toHaveBeenCalledWith(100);
+      expect(tmdbService.getTVShowDetails).toHaveBeenCalledWith(100, 'en-US');
       expect(mediaItem.status).toBe('Released');
       expect(mediaItem.countries).toEqual(['US']);
       expect(mediaItem.companies).toEqual(['HBO']);
       expect(mediaItem.numberOfEpisodes).toBe(30);
       expect(mediaItem.nextEpisodeAirDate).toBeNull();
-      expect(tmdbService.getTVShowCredits).toHaveBeenCalledWith(100);
+      expect(tmdbService.getTVShowCredits).toHaveBeenCalledWith(100, 'en-US');
     });
 
     it('should set nextEpisodeAirDate when nextEpisodeToAir exists', async () => {
@@ -325,7 +331,10 @@ describe('MediaItemService', () => {
       tmdbService.getTopActors.mockReturnValue([]);
       mediaPersonService.saveAll.mockResolvedValue(undefined);
 
-      await service.getOrCreate(makeImdbRow({ 'Title Type': 'tv series' }));
+      await service.getOrCreate(
+        makeImdbRow({ 'Title Type': 'tv series' }),
+        'en-US' as never,
+      );
 
       expect(mediaItem.nextEpisodeAirDate).toEqual(new Date('2024-12-25'));
     });
@@ -346,7 +355,10 @@ describe('MediaItemService', () => {
       mediaPersonService.saveAll.mockResolvedValue(undefined);
 
       await expect(
-        service.getOrCreate(makeImdbRow({ 'Title Type': 'tv series' })),
+        service.getOrCreate(
+          makeImdbRow({ 'Title Type': 'tv series' }),
+          'en-US' as never,
+        ),
       ).resolves.not.toThrow();
 
       expect(mediaItemRepository.save).toHaveBeenCalled();
@@ -364,7 +376,7 @@ describe('MediaItemService', () => {
       mediaItemRepository.save.mockResolvedValue(mediaItem);
       tmdbService.getMovieCredits.mockResolvedValue(null);
 
-      await service.getOrCreate(makeImdbRow());
+      await service.getOrCreate(makeImdbRow(), 'en-US' as never);
 
       expect(mediaPersonService.saveAll).not.toHaveBeenCalled();
     });
@@ -385,7 +397,7 @@ describe('MediaItemService', () => {
       tmdbService.getTopActors.mockReturnValue([]);
       mediaPersonService.saveAll.mockResolvedValue(undefined);
 
-      await service.getOrCreate(makeImdbRow());
+      await service.getOrCreate(makeImdbRow(), 'en-US' as never);
 
       expect(tmdbService.getTopActors).toHaveBeenCalledWith(credits, 7);
     });

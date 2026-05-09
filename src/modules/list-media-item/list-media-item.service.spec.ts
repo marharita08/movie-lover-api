@@ -85,9 +85,9 @@ describe('ListMediaItemService', () => {
       listMediaItemRepository.create.mockReturnValue(listMediaItem);
       listMediaItemRepository.save.mockResolvedValue(listMediaItem);
 
-      await service.add('list-uuid', row, 1);
+      await service.add('list-uuid', row, 1, 'en-US' as never);
 
-      expect(mediaItemService.getOrCreate).toHaveBeenCalledWith(row);
+      expect(mediaItemService.getOrCreate).toHaveBeenCalledWith(row, 'en-US');
       expect(listMediaItemRepository.create).toHaveBeenCalledWith({
         listId: 'list-uuid',
         mediaItemId: mediaItem.id,
@@ -107,7 +107,7 @@ describe('ListMediaItemService', () => {
       listMediaItemRepository.create.mockReturnValue(listMediaItem);
       listMediaItemRepository.save.mockResolvedValue(listMediaItem);
 
-      await service.add('list-uuid', row, 1);
+      await service.add('list-uuid', row, 1, 'en-US' as never);
 
       expect(listMediaItemRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ userRating: null }),
@@ -123,7 +123,7 @@ describe('ListMediaItemService', () => {
       listMediaItemRepository.create.mockReturnValue(listMediaItem);
       listMediaItemRepository.save.mockResolvedValue(listMediaItem);
 
-      await service.add('list-uuid', row, 1);
+      await service.add('list-uuid', row, 1, 'en-US' as never);
 
       expect(listMediaItemRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ dateRated: null }),
@@ -138,7 +138,7 @@ describe('ListMediaItemService', () => {
       listMediaItemRepository.create.mockReturnValue(listMediaItem);
       listMediaItemRepository.save.mockResolvedValue(listMediaItem);
 
-      await service.add('list-uuid', makeImdbRow(), 5);
+      await service.add('list-uuid', makeImdbRow(), 5, 'en-US' as never);
 
       expect(listMediaItemRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ position: 5 }),
@@ -149,7 +149,7 @@ describe('ListMediaItemService', () => {
       mediaItemService.getOrCreate.mockRejectedValue(new Error('TMDB error'));
 
       await expect(
-        service.add('list-uuid', makeImdbRow(), 1),
+        service.add('list-uuid', makeImdbRow(), 1, 'en-US' as never),
       ).resolves.not.toThrow();
 
       expect(listMediaItemRepository.create).not.toHaveBeenCalled();
@@ -163,7 +163,7 @@ describe('ListMediaItemService', () => {
       listMediaItemRepository.save.mockRejectedValue(new Error('DB error'));
 
       await expect(
-        service.add('list-uuid', makeImdbRow(), 1),
+        service.add('list-uuid', makeImdbRow(), 1, 'en-US' as never),
       ).resolves.not.toThrow();
     });
   });

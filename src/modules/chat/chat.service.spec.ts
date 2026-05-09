@@ -25,6 +25,7 @@ describe('ChatService', () => {
   let tmdbService: jest.Mocked<TmdbService>;
 
   const mockUserId = 'user-uuid';
+  const mockUser = { id: mockUserId, language: 'en-US' };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -147,7 +148,10 @@ describe('ChatService', () => {
       aiService.getRecommendations.mockResolvedValue(mockAiResponse);
       tmdbService.searchMovies.mockResolvedValue(mockMovieSearchResult);
 
-      await service.processUserMessage(mockUserId, 'Recommend me a movie');
+      await service.processUserMessage(
+        mockUser as never,
+        'Recommend me a movie',
+      );
 
       expect(chatMessageRepository.create).toHaveBeenCalledWith({
         userId: mockUserId,
@@ -179,6 +183,7 @@ describe('ChatService', () => {
       expect(tmdbService.searchMovies).toHaveBeenCalledWith({
         query: 'Inception',
         year: 2010,
+        language: 'en-US',
       });
 
       // Verify AI response was saved
@@ -235,11 +240,12 @@ describe('ChatService', () => {
       aiService.getRecommendations.mockResolvedValue(mockAiResponse);
       tmdbService.searchTVShows.mockResolvedValue(mockTVSearchResult);
 
-      await service.processUserMessage(mockUserId, 'Recommend TV shows');
+      await service.processUserMessage(mockUser as never, 'Recommend TV shows');
 
       expect(tmdbService.searchTVShows).toHaveBeenCalledWith({
         query: 'Breaking Bad',
         year: 2008,
+        language: 'en-US',
       });
 
       expect(chatMessageRepository.save).toHaveBeenLastCalledWith(
@@ -317,7 +323,10 @@ describe('ChatService', () => {
       tmdbService.searchMovies.mockResolvedValue(mockMovieSearchResult);
       tmdbService.searchTVShows.mockResolvedValue(mockTVSearchResult);
 
-      await service.processUserMessage(mockUserId, 'Mixed recommendations');
+      await service.processUserMessage(
+        mockUser as never,
+        'Mixed recommendations',
+      );
 
       expect(tmdbService.searchMovies).toHaveBeenCalledTimes(1);
       expect(tmdbService.searchTVShows).toHaveBeenCalledTimes(1);
@@ -348,7 +357,7 @@ describe('ChatService', () => {
         totalResults: 0,
       });
 
-      await service.processUserMessage(mockUserId, 'Test message');
+      await service.processUserMessage(mockUser as never, 'Test message');
 
       expect(chatMessageRepository.save).toHaveBeenLastCalledWith(
         expect.objectContaining({
@@ -402,7 +411,7 @@ describe('ChatService', () => {
           totalResults: 0,
         });
 
-      await service.processUserMessage(mockUserId, 'Test message');
+      await service.processUserMessage(mockUser as never, 'Test message');
 
       expect(chatMessageRepository.save).toHaveBeenLastCalledWith(
         expect.objectContaining({
@@ -455,7 +464,7 @@ describe('ChatService', () => {
       aiService.getRecommendations.mockResolvedValue(mockAiResponse);
       tmdbService.searchMovies.mockResolvedValue(mockMovieSearchResult);
 
-      await service.processUserMessage(mockUserId, 'Test');
+      await service.processUserMessage(mockUser as never, 'Test');
 
       expect(chatMessageRepository.save).toHaveBeenLastCalledWith(
         expect.objectContaining({
@@ -485,7 +494,7 @@ describe('ChatService', () => {
         totalResults: 0,
       });
 
-      await service.processUserMessage(mockUserId, 'Test');
+      await service.processUserMessage(mockUser as never, 'Test');
 
       expect(chatMessageRepository.save).toHaveBeenLastCalledWith(
         expect.objectContaining({
