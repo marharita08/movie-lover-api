@@ -3,7 +3,9 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import { Language, OtpPurpose } from 'src/entities';
 import { EmailService } from 'src/modules/email/email.service';
 import { HashService } from 'src/modules/hash/hash.service';
@@ -13,7 +15,7 @@ import { UserDto } from 'src/modules/user/dto';
 import { UserService } from 'src/modules/user/user.service';
 import { generateSessionId } from 'src/utils';
 
-import { getOtpEmailMessage, OtpPurposeToEmailSubject } from '../const';
+import { OtpPurposeToEmailSubject } from '../const';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
@@ -42,12 +44,15 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly resetPasswordTokenService: ResetPasswordTokenService,
     private readonly googleAuthService: GoogleAuthService,
+    private readonly i18n: I18nService,
   ) {}
 
   async signUp(signUpDto: SignUpDto) {
     const existingUser = await this.userService.getByEmail(signUpDto.email);
     if (existingUser) {
-      throw new ConflictException('Email already taken');
+      throw new ConflictException(
+        this.i18n.t(TranslationKeys.ERROR_EMAIL_TAKEN),
+      );
     }
 
     const passwordHash = await this.hashService.hash(signUpDto.password);
@@ -64,14 +69,21 @@ export class AuthService {
       user.email,
       OtpPurpose.EMAIL_VERIFICATION,
     );
+    const subject: string = this.i18n.t(
+      OtpPurposeToEmailSubject[OtpPurpose.EMAIL_VERIFICATION],
+    );
+    const body: string = this.i18n.t(TranslationKeys.OTP_EMAIL_BODY, {
+      args: { code },
+    });
+    const response = this.i18n.t(TranslationKeys.OTP_SENT_RESPONSE);
 
     await this.emailService.sendEmail(
       user.email,
-      'Movie Lover - Email Verification',
-      getOtpEmailMessage(code),
+      `Movie Lover - ${subject}`,
+      body,
     );
 
-    return { message: 'We sent you an email with a verification code' };
+    return { message: response };
   }
 
   async verifyEmailAndLogin(
@@ -110,7 +122,9 @@ export class AuthService {
     const { email, password } = loginDto;
     const user = await this.userService.getByEmail(email);
     if (!user || !user.passwordHash) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(
+        this.i18n.t(TranslationKeys.ERROR_INVALID_CREDENTIALS),
+      );
     }
 
     const isPasswordValid = await this.hashService.compare(
@@ -118,7 +132,9 @@ export class AuthService {
       user.passwordHash,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(
+        this.i18n.t(TranslationKeys.ERROR_INVALID_CREDENTIALS),
+      );
     }
 
     await this.userService.update(user.id, {
@@ -147,13 +163,19 @@ export class AuthService {
     const { email, purpose } = sendOtpDto;
     const code = await this.otpService.create(email, purpose);
 
+    const subject: string = this.i18n.t(OtpPurposeToEmailSubject[purpose]);
+    const body = this.i18n.t(TranslationKeys.OTP_EMAIL_BODY, {
+      args: { code },
+    });
+    const response = this.i18n.t(TranslationKeys.OTP_SENT_RESPONSE);
+
     await this.emailService.sendEmail(
       email,
-      `Movie Lover - ${OtpPurposeToEmailSubject[purpose]}`,
-      getOtpEmailMessage(code),
+      `Movie Lover - ${subject}`,
+      body as string,
     );
 
-    return { message: 'We sent you an email with a verification code' };
+    return { message: response };
   }
 
   public async updateUser(id: string, updateUserDto: UpdateUserDto) {
@@ -169,13 +191,21 @@ export class AuthService {
     await this.userService.getByEmailOrThrow(email);
     const code = await this.otpService.create(email, OtpPurpose.RESET_PASSWORD);
 
+    const subject: string = this.i18n.t(
+      TranslationKeys.PASSWORD_RESET_EMAIL_SUBJECT,
+    );
+    const body = this.i18n.t(TranslationKeys.OTP_EMAIL_BODY, {
+      args: { code },
+    });
+    const response = this.i18n.t(TranslationKeys.PASSWORD_RESET_EMAIL_SENT);
+
     await this.emailService.sendEmail(
       email,
-      'Movie Lover - Password Reset',
-      getOtpEmailMessage(code),
+      `Movie Lover - ${subject}`,
+      body as string,
     );
 
-    return { message: 'We sent you an email with a reset code' };
+    return { message: response };
   }
 
   public async verifyResetPasswordOtp(

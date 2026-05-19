@@ -7,8 +7,10 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { ILike, Repository } from 'typeorm';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import {
   Language,
   List,
@@ -46,6 +48,7 @@ export class ListService {
     private readonly fileService: FileService,
     private readonly csvParserService: CsvParserService,
     private readonly listMediaItemService: ListMediaItemService,
+    private readonly i18n: I18nService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -106,7 +109,9 @@ export class ListService {
     const file = await this.fileService.findOne(dto.fileId);
 
     if (!file || file.userId !== user.id) {
-      throw new ForbiddenException('File not found or access denied');
+      throw new ForbiddenException(
+        this.i18n.t(TranslationKeys.ERROR_FILE_NOT_FOUND_OR_ACCESS_DENIED),
+      );
     }
 
     const list = this.listRepository.create({
@@ -162,7 +167,9 @@ export class ListService {
     });
 
     if (!list) {
-      throw new NotFoundException(`List with ID ${id} not found`);
+      throw new NotFoundException(
+        this.i18n.t(TranslationKeys.ERROR_LIST_NOT_FOUND, { args: { id } }),
+      );
     }
 
     return list;
@@ -651,10 +658,16 @@ export class ListService {
 
   private checkListStatus(list: List) {
     if (list.status !== ListStatus.COMPLETED) {
+      if (list.status === ListStatus.PROCESSING) {
+        throw new BadRequestException(
+          this.i18n.t(TranslationKeys.ERROR_LIST_STILL_PROCESSING),
+        );
+      }
+
       throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
+        this.i18n.t(TranslationKeys.ERROR_LIST_PROCESSING_FAILED, {
+          args: { error: list.errorMessage || 'Unknown error.' },
+        }),
       );
     }
   }

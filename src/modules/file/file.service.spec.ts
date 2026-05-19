@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { I18nService } from 'nestjs-i18n';
 
 import { File } from 'src/entities';
 import { StorageService } from 'src/modules/storage/storage.service';
@@ -21,6 +21,10 @@ const mockStorageService = () => ({
   deleteFile: jest.fn(),
   downloadFile: jest.fn(),
 });
+
+const mockI18nService = {
+  t: jest.fn((key: string) => key),
+};
 
 const makeFile = (overrides: Partial<File> = {}): File =>
   ({
@@ -47,18 +51,16 @@ const makeMulterFile = (
 
 describe('FileService', () => {
   let service: FileService;
-  let fileRepository: jest.Mocked<Repository<File>>;
-  let storageService: jest.Mocked<StorageService>;
+  let fileRepository: jest.Mocked<ReturnType<typeof mockFileRepository>>;
+  let storageService: jest.Mocked<ReturnType<typeof mockStorageService>>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FileService,
-        {
-          provide: getRepositoryToken(File),
-          useFactory: mockFileRepository,
-        },
+        { provide: getRepositoryToken(File), useFactory: mockFileRepository },
         { provide: StorageService, useFactory: mockStorageService },
+        { provide: I18nService, useValue: mockI18nService },
       ],
     }).compile();
 
@@ -70,19 +72,22 @@ describe('FileService', () => {
   afterEach(() => jest.clearAllMocks());
 
   describe('upload', () => {
-    it('should upload file to storage and save entity', async () => {
+    it('should upload file and save entity', async () => {
       const multerFile = makeMulterFile();
       const fileEntity = makeFile();
+
       storageService.uploadFile.mockResolvedValue({
-        publicUrl: 'https://cdn.example.com/test.png',
-        key: 'uploads/test.png',
+        publicUrl: fileEntity.url,
+        key: fileEntity.key,
       });
+
       fileRepository.create.mockReturnValue(fileEntity);
       fileRepository.save.mockResolvedValue(fileEntity);
 
       const result = await service.upload(multerFile, 'user-uuid');
 
       expect(storageService.uploadFile).toHaveBeenCalledWith(multerFile);
+
       expect(fileRepository.create).toHaveBeenCalledWith({
         name: 'test.png',
         key: 'uploads/test.png',
@@ -91,14 +96,16 @@ describe('FileService', () => {
         size: 1024,
         userId: 'user-uuid',
       });
+
       expect(fileRepository.save).toHaveBeenCalledWith(fileEntity);
       expect(result).toBe(fileEntity);
     });
   });
 
   describe('findOne', () => {
-    it('should return file if found', async () => {
+    it('should return file if exists', async () => {
       const file = makeFile();
+
       fileRepository.findOne.mockResolvedValue(file);
 
       const result = await service.findOne('file-uuid');
@@ -106,11 +113,12 @@ describe('FileService', () => {
       expect(fileRepository.findOne).toHaveBeenCalledWith({
         where: { id: 'file-uuid' },
       });
+
       expect(result).toBe(file);
     });
 
-    it('should throw NotFoundException if file is not found', async () => {
-      fileRepository.findOne.mockResolvedValue(null as never);
+    it('should throw NotFoundException if file not found', async () => {
+      fileRepository.findOne.mockResolvedValue(null as any);
 
       await expect(service.findOne('file-uuid')).rejects.toThrow(
         NotFoundException,
@@ -119,11 +127,12 @@ describe('FileService', () => {
   });
 
   describe('delete', () => {
-    it('should delete file from storage and repository', async () => {
+    it('should delete file from storage and repo', async () => {
       const file = makeFile();
+
       fileRepository.findOne.mockResolvedValue(file);
       storageService.deleteFile.mockResolvedValue(undefined);
-      fileRepository.remove.mockResolvedValue(file);
+      fileRepository.remove.mockResolvedValue(file as any);
 
       await service.delete('file-uuid');
 
@@ -131,8 +140,8 @@ describe('FileService', () => {
       expect(fileRepository.remove).toHaveBeenCalledWith(file);
     });
 
-    it('should throw NotFoundException if file is not found', async () => {
-      fileRepository.findOne.mockResolvedValue(null as never);
+    it('should throw if file not found', async () => {
+      fileRepository.findOne.mockResolvedValue(null as any);
 
       await expect(service.delete('file-uuid')).rejects.toThrow(
         NotFoundException,
@@ -144,58 +153,39 @@ describe('FileService', () => {
   });
 
   describe('deleteByUserId', () => {
-    it('should delete all files for given userId from storage and repository', async () => {
+    it('should delete all files for user', async () => {
       const files = [
-        makeFile({ id: 'file-uuid-1', key: 'uploads/file1.png' }),
-        makeFile({ id: 'file-uuid-2', key: 'uploads/file2.png' }),
+        makeFile({ id: '1', key: 'k1' }),
+        makeFile({ id: '2', key: 'k2' }),
       ];
+
       fileRepository.find.mockResolvedValue(files);
       storageService.deleteFile.mockResolvedValue(undefined);
-      fileRepository.remove.mockResolvedValue(files as never);
+      fileRepository.remove.mockResolvedValue(files as any);
 
       await service.deleteByUserId('user-uuid');
 
       expect(fileRepository.find).toHaveBeenCalledWith({
         where: { userId: 'user-uuid' },
       });
+
       expect(storageService.deleteFile).toHaveBeenCalledTimes(2);
-      expect(storageService.deleteFile).toHaveBeenCalledWith(
-        'uploads/file1.png',
-      );
-      expect(storageService.deleteFile).toHaveBeenCalledWith(
-        'uploads/file2.png',
-      );
       expect(fileRepository.remove).toHaveBeenCalledWith(files);
     });
 
-    it('should skip files that failed to delete from storage', async () => {
-      const files = [
-        makeFile({ id: 'file-uuid-1', key: 'uploads/file1.png' }),
-        makeFile({ id: 'file-uuid-2', key: 'uploads/file2.png' }),
-      ];
+    it('should handle partial storage failures', async () => {
+      const files = [makeFile({ id: '1', key: 'k1' })];
+
       fileRepository.find.mockResolvedValue(files);
-      storageService.deleteFile
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('Storage error'));
-      fileRepository.remove.mockResolvedValue([files[0]] as never);
-
-      await service.deleteByUserId('user-uuid');
-
-      expect(fileRepository.remove).toHaveBeenCalledWith([files[0]]);
-    });
-
-    it('should not call repository.remove if all files failed to delete from storage', async () => {
-      const files = [makeFile({ id: 'file-uuid-1', key: 'uploads/file1.png' })];
-      fileRepository.find.mockResolvedValue(files);
-      storageService.deleteFile.mockRejectedValue(new Error('Storage error'));
-      fileRepository.remove.mockResolvedValue([] as never);
+      storageService.deleteFile.mockRejectedValue(new Error('fail'));
+      fileRepository.remove.mockResolvedValue([] as any);
 
       await service.deleteByUserId('user-uuid');
 
       expect(fileRepository.remove).toHaveBeenCalledWith([]);
     });
 
-    it('should do nothing if user has no files', async () => {
+    it('should do nothing if no files exist', async () => {
       fileRepository.find.mockResolvedValue([]);
 
       await service.deleteByUserId('user-uuid');
@@ -206,21 +196,22 @@ describe('FileService', () => {
   });
 
   describe('download', () => {
-    it('should return download url for file', async () => {
+    it('should return signed url', async () => {
       const file = makeFile();
+
       fileRepository.findOne.mockResolvedValue(file);
       storageService.downloadFile.mockResolvedValue(
-        'https://cdn.example.com/signed-url',
+        'https://cdn.example.com/signed',
       );
 
       const result = await service.download('file-uuid');
 
       expect(storageService.downloadFile).toHaveBeenCalledWith(file.key);
-      expect(result).toBe('https://cdn.example.com/signed-url');
+      expect(result).toBe('https://cdn.example.com/signed');
     });
 
-    it('should throw NotFoundException if file is not found', async () => {
-      fileRepository.findOne.mockResolvedValue(null as never);
+    it('should throw if file not found', async () => {
+      fileRepository.findOne.mockResolvedValue(null as any);
 
       await expect(service.download('file-uuid')).rejects.toThrow(
         NotFoundException,

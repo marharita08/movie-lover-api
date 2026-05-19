@@ -1,7 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { MoreThan, Repository } from 'typeorm';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import { ResetPasswordToken } from 'src/entities';
 import { HashService } from 'src/modules/hash/hash.service';
 import { generateResetPasswordToken } from 'src/utils';
@@ -12,6 +14,7 @@ export class ResetPasswordTokenService {
     @InjectRepository(ResetPasswordToken)
     private readonly resetPasswordTokenRepository: Repository<ResetPasswordToken>,
     private readonly hashService: HashService,
+    private readonly i18n: I18nService,
   ) {}
 
   async create(userId: string) {
@@ -31,7 +34,9 @@ export class ResetPasswordTokenService {
       where: { userId, expiresAt: MoreThan(new Date()) },
     });
     if (!resetPasswordToken) {
-      throw new UnauthorizedException('Invalid or expired token');
+      throw new UnauthorizedException(
+        this.i18n.t(TranslationKeys.ERROR_TOKEN_INVALID_OR_EXPIRED),
+      );
     }
 
     const isTokenValid = await this.hashService.compare(
@@ -40,7 +45,9 @@ export class ResetPasswordTokenService {
     );
 
     if (!isTokenValid) {
-      throw new UnauthorizedException('Invalid or expired token');
+      throw new UnauthorizedException(
+        this.i18n.t(TranslationKeys.ERROR_TOKEN_INVALID_OR_EXPIRED),
+      );
     }
 
     await this.resetPasswordTokenRepository.delete(resetPasswordToken.id);

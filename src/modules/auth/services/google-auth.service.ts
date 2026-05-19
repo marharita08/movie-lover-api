@@ -1,6 +1,9 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
+import { I18nService } from 'nestjs-i18n';
+
+import { TranslationKeys } from 'src/const/translations/keys';
 
 @Injectable()
 export class GoogleAuthService {
@@ -8,7 +11,10 @@ export class GoogleAuthService {
   private clientId?: string;
   private logger = new Logger(GoogleAuthService.name);
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private i18n: I18nService,
+  ) {
     this.clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
     this.client = new OAuth2Client(
       this.clientId,
@@ -31,7 +37,9 @@ export class GoogleAuthService {
       const payload = ticket.getPayload();
 
       if (!payload?.sub || !payload?.email) {
-        throw new UnauthorizedException('Authorization failed');
+        throw new UnauthorizedException(
+          this.i18n.t(TranslationKeys.ERROR_AUTHORIZATION_FAILED),
+        );
       }
 
       return {
@@ -41,7 +49,9 @@ export class GoogleAuthService {
       };
     } catch (error) {
       this.logger.error('Authorization failed', error);
-      throw new UnauthorizedException('Authorization failed');
+      throw new UnauthorizedException(
+        this.i18n.t(TranslationKeys.ERROR_AUTHORIZATION_FAILED),
+      );
     }
   }
 }

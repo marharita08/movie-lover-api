@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import MockAdapter from 'axios-mock-adapter';
+import { I18nService } from 'nestjs-i18n';
 
 import { MediaType } from 'src/entities';
 
@@ -50,6 +51,12 @@ describe('TmdbService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        {
+          provide: I18nService,
+          useValue: {
+            t: jest.fn((key: string) => key),
+          },
+        },
         TmdbService,
         { provide: ConfigService, useFactory: mockConfigService },
         { provide: CACHE_MANAGER, useFactory: mockCacheManager },
@@ -76,6 +83,12 @@ describe('TmdbService', () => {
     it('should throw if TMDB_TOKEN or TMDB_URL is missing', async () => {
       const module = Test.createTestingModule({
         providers: [
+          {
+            provide: I18nService,
+            useValue: {
+              t: jest.fn((key: string) => key),
+            },
+          },
           TmdbService,
           {
             provide: ConfigService,

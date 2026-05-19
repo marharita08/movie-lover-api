@@ -10,7 +10,9 @@ import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import rateLimit from 'axios-rate-limit';
 import type { Cache } from 'cache-manager';
+import { I18nService } from 'nestjs-i18n';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import { Language, MediaType } from 'src/entities';
 import { toSnakeCase } from 'src/utils';
 
@@ -51,6 +53,7 @@ export class TmdbService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly configService: ConfigService,
     private readonly tmdbResponseMapperService: TmdbResponseMapperService,
+    private readonly i18n: I18nService,
   ) {
     const token = this.configService.get<string>('TMDB_TOKEN');
     const baseUrl = this.configService.get<string>('TMDB_URL');
@@ -114,7 +117,7 @@ export class TmdbService {
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to fetch movies',
+          : this.i18n.t(TranslationKeys.ERROR_MOVIES_FETCH_FAILED),
       );
     }
   }
@@ -142,14 +145,15 @@ export class TmdbService {
 
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new NotFoundException(
-          error.response.data?.status_message || 'Movie not found',
+          error.response.data?.status_message ||
+            this.i18n.t(TranslationKeys.ERROR_MOVIE_NOT_FOUND),
         );
       }
 
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to fetch movie details',
+          : this.i18n.t(TranslationKeys.ERROR_MOVIE_DETAILS_FETCH_FAILED),
       );
     }
   }
@@ -231,14 +235,15 @@ export class TmdbService {
 
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new NotFoundException(
-          error.response.data?.status_message || 'TV show not found',
+          error.response.data?.status_message ||
+            this.i18n.t(TranslationKeys.ERROR_TV_SHOW_NOT_FOUND),
         );
       }
 
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to fetch tv show details',
+          : this.i18n.t(TranslationKeys.ERROR_TV_SHOW_DETAILS_FETCH_FAILED),
       );
     }
   }
@@ -323,14 +328,15 @@ export class TmdbService {
 
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new NotFoundException(
-          error.response.data?.status_message || 'Person not found',
+          error.response.data?.status_message ||
+            this.i18n.t(TranslationKeys.ERROR_PERSON_NOT_FOUND),
         );
       }
 
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to get person',
+          : this.i18n.t(TranslationKeys.ERROR_PERSON_FETCH_FAILED),
       );
     }
   }
@@ -354,7 +360,7 @@ export class TmdbService {
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to search',
+          : this.i18n.t(TranslationKeys.ERROR_SEARCH_FAILED),
       );
     }
   }
@@ -376,7 +382,7 @@ export class TmdbService {
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to search',
+          : this.i18n.t(TranslationKeys.ERROR_SEARCH_FAILED),
       );
     }
   }
@@ -399,7 +405,7 @@ export class TmdbService {
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to search',
+          : this.i18n.t(TranslationKeys.ERROR_SEARCH_FAILED),
       );
     }
   }

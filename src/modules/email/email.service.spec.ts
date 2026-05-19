@@ -1,10 +1,11 @@
 import { InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import {
   TransactionalEmailsApi,
   TransactionalEmailsApiApiKeys,
 } from '@sendinblue/client';
+import { I18nService } from 'nestjs-i18n';
 
 import { EmailService } from './email.service';
 
@@ -25,7 +26,11 @@ MockTransactionalEmailsApi.mockImplementation(
     }) as unknown as TransactionalEmailsApi,
 );
 
-const mockConfigService = (
+const mockI18nService = {
+  t: jest.fn((key: string) => key),
+};
+
+const createMockConfigService = (
   overrides: Record<string, string | undefined> = {},
 ) => ({
   get: jest.fn((key: string) => {
@@ -39,97 +44,78 @@ const mockConfigService = (
   }),
 });
 
+const buildModule = (
+  configOverrides: Record<string, string | undefined> = {},
+) =>
+  Test.createTestingModule({
+    providers: [
+      EmailService,
+      { provide: I18nService, useValue: mockI18nService },
+      {
+        provide: ConfigService,
+        useValue: createMockConfigService(configOverrides),
+      },
+    ],
+  }).compile();
+
 describe('EmailService', () => {
   let service: EmailService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        EmailService,
-        { provide: ConfigService, useFactory: mockConfigService },
-      ],
-    }).compile();
-
+    const module = await buildModule();
     service = module.get(EmailService);
   });
 
   describe('constructor', () => {
-    it('should initialize the Brevo client and set the API key', () => {
+    it('should initialize client and set api key', () => {
       expect(MockTransactionalEmailsApi).toHaveBeenCalledTimes(1);
+
       expect(mockSetApiKey).toHaveBeenCalledWith(
         TransactionalEmailsApiApiKeys.apiKey,
         'test-api-key',
       );
     });
 
-    it('should throw when BREVO_API_KEY is missing', async () => {
-      await expect(
-        Test.createTestingModule({
-          providers: [
-            EmailService,
-            {
-              provide: ConfigService,
-              useFactory: () => mockConfigService({ BREVO_API_KEY: undefined }),
-            },
-          ],
-        }).compile(),
-      ).rejects.toThrow('BREVO_API_KEY is not set');
+    it('should throw if BREVO_API_KEY is missing', async () => {
+      await expect(buildModule({ BREVO_API_KEY: undefined })).rejects.toThrow();
     });
 
-    it('should throw when BREVO_FROM_EMAIL is missing', async () => {
+    it('should throw if sender config is missing', async () => {
       await expect(
-        Test.createTestingModule({
-          providers: [
-            EmailService,
-            {
-              provide: ConfigService,
-              useFactory: () =>
-                mockConfigService({ BREVO_FROM_EMAIL: undefined }),
-            },
-          ],
-        }).compile(),
-      ).rejects.toThrow('BREVO_FROM_EMAIL or BREVO_FROM_NAME is not set');
-    });
+        buildModule({ BREVO_FROM_EMAIL: undefined }),
+      ).rejects.toThrow();
 
-    it('should throw when BREVO_FROM_NAME is missing', async () => {
       await expect(
-        Test.createTestingModule({
-          providers: [
-            EmailService,
-            {
-              provide: ConfigService,
-              useFactory: () =>
-                mockConfigService({ BREVO_FROM_NAME: undefined }),
-            },
-          ],
-        }).compile(),
-      ).rejects.toThrow('BREVO_FROM_EMAIL or BREVO_FROM_NAME is not set');
+        buildModule({ BREVO_FROM_NAME: undefined }),
+      ).rejects.toThrow();
     });
   });
 
   describe('sendEmail', () => {
-    it('should call sendTransacEmail with correct payload', async () => {
+    it('should send email with full payload', async () => {
       mockSendTransacEmail.mockResolvedValue({});
 
       await service.sendEmail(
         'user@example.com',
         'Welcome!',
-        'Plain text',
+        'Text content',
         '<b>HTML</b>',
       );
 
       expect(mockSendTransacEmail).toHaveBeenCalledWith({
         to: [{ email: 'user@example.com' }],
-        sender: { email: 'no-reply@example.com', name: 'Test App' },
+        sender: {
+          email: 'no-reply@example.com',
+          name: 'Test App',
+        },
         subject: 'Welcome!',
-        textContent: 'Plain text',
+        textContent: 'Text content',
         htmlContent: '<b>HTML</b>',
       });
     });
 
-    it('should send email without html when html is not provided', async () => {
+    it('should send email without html content', async () => {
       mockSendTransacEmail.mockResolvedValue({});
 
       await service.sendEmail('user@example.com', 'Hello', 'Text only');
@@ -142,24 +128,22 @@ describe('EmailService', () => {
       );
     });
 
-    it('should throw InternalServerErrorException when sendTransacEmail fails', async () => {
+    it('should throw InternalServerErrorException when API fails', async () => {
       mockSendTransacEmail.mockRejectedValue(new Error('Network error'));
 
       await expect(
         service.sendEmail('user@example.com', 'Subj', 'Text'),
-      ).rejects.toThrow(
-        new InternalServerErrorException('Unable to send email'),
-      );
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
     });
 
-    it('should throw InternalServerErrorException and extract error details from response body', async () => {
+    it('should throw InternalServerErrorException on API error response', async () => {
       mockSendTransacEmail.mockRejectedValue({
         response: { body: 'Bad credentials' },
       });
 
       await expect(
         service.sendEmail('user@example.com', 'Subj', 'Text'),
-      ).rejects.toThrow(InternalServerErrorException);
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
     });
   });
 });

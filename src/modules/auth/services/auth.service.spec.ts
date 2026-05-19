@@ -1,6 +1,8 @@
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { I18nService } from 'nestjs-i18n';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import { OtpPurpose } from 'src/entities';
 import { EmailService } from 'src/modules/email/email.service';
 import { HashService } from 'src/modules/hash/hash.service';
@@ -80,6 +82,10 @@ const makeTokensPair = () => ({
   refreshToken: 'refresh-token',
 });
 
+const mockI18nService = {
+  t: jest.fn((key: string) => key),
+};
+
 describe('AuthService', () => {
   let service: AuthService;
   let userService: jest.Mocked<UserService>;
@@ -97,6 +103,7 @@ describe('AuthService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: I18nService, useValue: mockI18nService },
         AuthService,
         { provide: UserService, useFactory: mockUserService },
         { provide: HashService, useFactory: mockHashService },
@@ -120,9 +127,11 @@ describe('AuthService', () => {
     otpService = module.get(OtpService);
     emailService = module.get(EmailService);
     resetPasswordTokenService = module.get(ResetPasswordTokenService);
+
     mockedGenerateSessionId = jest.mocked(
       generateSessionIdUtil.generateSessionId,
     );
+
     googleAuthService = module.get(GoogleAuthService);
   });
 
@@ -157,6 +166,7 @@ describe('AuthService', () => {
       });
 
       expect(hashService.hash).toHaveBeenCalledWith('password');
+
       expect(userService.create).toHaveBeenCalledWith(
         expect.objectContaining({
           email: 'test@example.com',
@@ -164,17 +174,20 @@ describe('AuthService', () => {
           name: 'Test User',
         }),
       );
+
       expect(otpService.create).toHaveBeenCalledWith(
         'test@example.com',
         OtpPurpose.EMAIL_VERIFICATION,
       );
+
       expect(emailService.sendEmail).toHaveBeenCalledWith(
         'test@example.com',
-        'Movie Lover - Email Verification',
+        expect.any(String),
         expect.any(String),
       );
+
       expect(result).toEqual({
-        message: 'We sent you an email with a verification code',
+        message: TranslationKeys.OTP_SENT_RESPONSE,
       });
     });
   });
@@ -184,11 +197,15 @@ describe('AuthService', () => {
       const user = makeUser();
       const session = makeSession();
       const tokens = makeTokensPair();
+
       userService.getByEmailOrThrow.mockResolvedValue(user as never);
       otpService.verifyAndDelete.mockResolvedValue(undefined);
       userService.update.mockResolvedValue(user as never);
+
       mockedGenerateSessionId.mockReturnValue('session-uuid');
+
       sessionService.getOrCreate.mockResolvedValue(session as never);
+
       tokenService.generateTokensPair.mockResolvedValue(tokens);
 
       const result = await service.verifyEmailAndLogin(
@@ -202,19 +219,25 @@ describe('AuthService', () => {
         123456,
         OtpPurpose.EMAIL_VERIFICATION,
       );
+
       expect(userService.update).toHaveBeenCalledWith(
         user.id,
-        expect.objectContaining({ isEmailVerified: true }),
+        expect.objectContaining({
+          isEmailVerified: true,
+        }),
       );
+
       expect(mockedGenerateSessionId).toHaveBeenCalledWith(
         user.id,
         '127.0.0.1',
         'Mozilla/5.0',
       );
+
       expect(sessionService.getOrCreate).toHaveBeenCalledWith(
         'session-uuid',
         user.id,
       );
+
       expect(result).toEqual(tokens);
     });
   });
@@ -236,6 +259,7 @@ describe('AuthService', () => {
 
     it('should throw UnauthorizedException if password is invalid', async () => {
       userService.getByEmail.mockResolvedValue(makeUser() as never);
+
       hashService.compare.mockResolvedValue(false);
 
       await expect(
@@ -253,11 +277,17 @@ describe('AuthService', () => {
       const user = makeUser();
       const session = makeSession();
       const tokens = makeTokensPair();
+
       userService.getByEmail.mockResolvedValue(user as never);
+
       hashService.compare.mockResolvedValue(true);
+
       userService.update.mockResolvedValue(user as never);
+
       mockedGenerateSessionId.mockReturnValue('session-uuid');
+
       sessionService.getOrCreate.mockResolvedValue(session as never);
+
       tokenService.generateTokensPair.mockResolvedValue(tokens);
 
       const result = await service.login(
@@ -268,12 +298,16 @@ describe('AuthService', () => {
 
       expect(userService.update).toHaveBeenCalledWith(
         user.id,
-        expect.objectContaining({ lastLoginAt: expect.any(Date) as Date }),
+        expect.objectContaining({
+          lastLoginAt: expect.any(Date) as Date,
+        }),
       );
+
       expect(sessionService.getOrCreate).toHaveBeenCalledWith(
         'session-uuid',
         user.id,
       );
+
       expect(result).toEqual(tokens);
     });
   });
@@ -282,7 +316,9 @@ describe('AuthService', () => {
     it('should verify refresh token and return new tokens pair', async () => {
       const session = makeSession();
       const tokens = makeTokensPair();
+
       tokenService.verifyRefreshToken.mockResolvedValue(session as never);
+
       tokenService.generateTokensPair.mockResolvedValue(tokens);
 
       const result = await service.refresh('refresh-token');
@@ -290,7 +326,9 @@ describe('AuthService', () => {
       expect(tokenService.verifyRefreshToken).toHaveBeenCalledWith(
         'refresh-token',
       );
+
       expect(tokenService.generateTokensPair).toHaveBeenCalledWith(session);
+
       expect(result).toEqual(tokens);
     });
   });
@@ -298,11 +336,13 @@ describe('AuthService', () => {
   describe('getUser', () => {
     it('should return user by id', async () => {
       const user = makeUser();
+
       userService.getById.mockResolvedValue(user as never);
 
       const result = await service.getUser('user-uuid');
 
       expect(userService.getById).toHaveBeenCalledWith('user-uuid');
+
       expect(result).toEqual(user);
     });
   });
@@ -310,6 +350,7 @@ describe('AuthService', () => {
   describe('sendOtp', () => {
     it('should create otp, send email and return message', async () => {
       otpService.create.mockResolvedValue(123456);
+
       emailService.sendEmail.mockResolvedValue(undefined);
 
       const result = await service.sendOtp({
@@ -321,13 +362,15 @@ describe('AuthService', () => {
         'test@example.com',
         OtpPurpose.EMAIL_VERIFICATION,
       );
+
       expect(emailService.sendEmail).toHaveBeenCalledWith(
         'test@example.com',
         expect.any(String),
         expect.any(String),
       );
+
       expect(result).toEqual({
-        message: 'We sent you an email with a verification code',
+        message: TranslationKeys.OTP_SENT_RESPONSE,
       });
     });
   });
@@ -335,6 +378,7 @@ describe('AuthService', () => {
   describe('updateUser', () => {
     it('should call userService.update with correct arguments', async () => {
       const user = makeUser();
+
       userService.update.mockResolvedValue(user as never);
 
       const result = await service.updateUser('user-uuid', {
@@ -344,6 +388,7 @@ describe('AuthService', () => {
       expect(userService.update).toHaveBeenCalledWith('user-uuid', {
         name: 'New Name',
       });
+
       expect(result).toEqual(user);
     });
   });
@@ -371,7 +416,9 @@ describe('AuthService', () => {
 
     it('should create otp, send email and return message', async () => {
       userService.getByEmailOrThrow.mockResolvedValue(makeUser() as never);
+
       otpService.create.mockResolvedValue(123456);
+
       emailService.sendEmail.mockResolvedValue(undefined);
 
       const result = await service.forgotPassword({
@@ -382,13 +429,15 @@ describe('AuthService', () => {
         'test@example.com',
         OtpPurpose.RESET_PASSWORD,
       );
+
       expect(emailService.sendEmail).toHaveBeenCalledWith(
         'test@example.com',
-        'Movie Lover - Password Reset',
+        expect.any(String),
         expect.any(String),
       );
+
       expect(result).toEqual({
-        message: 'We sent you an email with a reset code',
+        message: TranslationKeys.PASSWORD_RESET_EMAIL_SENT,
       });
     });
   });
@@ -396,8 +445,11 @@ describe('AuthService', () => {
   describe('verifyResetPasswordOtp', () => {
     it('should verify otp, create reset token and return it', async () => {
       const user = makeUser();
+
       userService.getByEmailOrThrow.mockResolvedValue(user as never);
+
       otpService.verifyAndDelete.mockResolvedValue(undefined);
+
       resetPasswordTokenService.create.mockResolvedValue('reset-token');
 
       const result = await service.verifyResetPasswordOtp({
@@ -410,18 +462,27 @@ describe('AuthService', () => {
         123456,
         OtpPurpose.RESET_PASSWORD,
       );
+
       expect(resetPasswordTokenService.create).toHaveBeenCalledWith(user.id);
-      expect(result).toEqual({ token: 'reset-token' });
+
+      expect(result).toEqual({
+        token: 'reset-token',
+      });
     });
   });
 
   describe('resetPassword', () => {
     it('should verify token, update password and delete all sessions', async () => {
       const user = makeUser();
+
       userService.getByEmailOrThrow.mockResolvedValue(user as never);
+
       resetPasswordTokenService.verifyAndDelete.mockResolvedValue(undefined);
+
       hashService.hash.mockResolvedValue('new_hashed_password');
+
       userService.update.mockResolvedValue(user as never);
+
       sessionService.deleteAllSessions.mockResolvedValue(undefined);
 
       await service.resetPassword({
@@ -434,10 +495,13 @@ describe('AuthService', () => {
         user.id,
         'reset-token',
       );
+
       expect(hashService.hash).toHaveBeenCalledWith('new_password');
+
       expect(userService.update).toHaveBeenCalledWith(user.id, {
         passwordHash: 'new_hashed_password',
       });
+
       expect(sessionService.deleteAllSessions).toHaveBeenCalledWith(user.id);
     });
   });
@@ -445,8 +509,11 @@ describe('AuthService', () => {
   describe('changePassword', () => {
     it('should hash new password and update user', async () => {
       const user = makeUser();
+
       userService.getByEmailOrThrow.mockResolvedValue(user as never);
+
       hashService.hash.mockResolvedValue('new_hashed_password');
+
       userService.update.mockResolvedValue(user as never);
 
       await service.changePassword('test@example.com', {
@@ -454,6 +521,7 @@ describe('AuthService', () => {
       });
 
       expect(hashService.hash).toHaveBeenCalledWith('new_password');
+
       expect(userService.update).toHaveBeenCalledWith(user.id, {
         passwordHash: 'new_hashed_password',
       });
@@ -462,7 +530,9 @@ describe('AuthService', () => {
 
   describe('googleLogin', () => {
     const googleLoginDto = { code: 'google-auth-code' };
+
     const ip = '127.0.0.1';
+
     const userAgent = 'Mozilla/5.0';
 
     const googleUser = {
@@ -476,45 +546,65 @@ describe('AuthService', () => {
     });
 
     it('should login existing user found by googleId', async () => {
-      const user = makeUser({ googleId: 'google-id-123' });
+      const user = makeUser({
+        googleId: 'google-id-123',
+      });
+
       const session = makeSession();
+
       const tokens = makeTokensPair();
 
       userService.getByGoogleId.mockResolvedValue(user as never);
+
       userService.update.mockResolvedValue(user as never);
+
       mockedGenerateSessionId.mockReturnValue('session-uuid');
+
       sessionService.getOrCreate.mockResolvedValue(session as never);
+
       tokenService.generateTokensPair.mockResolvedValue(tokens);
 
       const result = await service.googleLogin(googleLoginDto, ip, userAgent);
 
       expect(userService.getByGoogleId).toHaveBeenCalledWith('google-id-123');
+
       expect(userService.getByEmail).not.toHaveBeenCalled();
+
       expect(userService.create).not.toHaveBeenCalled();
+
       expect(result).toEqual(tokens);
     });
 
     it('should link googleId to existing user found by email', async () => {
       const user = makeUser();
+
       const updatedUser = makeUser({
         googleId: 'google-id-123',
         isEmailVerified: true,
       });
+
       const session = makeSession();
+
       const tokens = makeTokensPair();
 
       userService.getByGoogleId.mockResolvedValue(null);
+
       userService.getByEmail.mockResolvedValue(user as never);
+
       userService.update
         .mockResolvedValueOnce(updatedUser as never)
         .mockResolvedValueOnce(updatedUser as never);
+
       mockedGenerateSessionId.mockReturnValue('session-uuid');
+
       sessionService.getOrCreate.mockResolvedValue(session as never);
+
       tokenService.generateTokensPair.mockResolvedValue(tokens);
 
       const result = await service.googleLogin(googleLoginDto, ip, userAgent);
 
       expect(userService.getByEmail).toHaveBeenCalledWith('test@example.com');
+
       expect(userService.update).toHaveBeenCalledWith(
         user.id,
         expect.objectContaining({
@@ -522,7 +612,9 @@ describe('AuthService', () => {
           isEmailVerified: true,
         }),
       );
+
       expect(userService.create).not.toHaveBeenCalled();
+
       expect(result).toEqual(tokens);
     });
 
@@ -531,15 +623,23 @@ describe('AuthService', () => {
         googleId: 'google-id-123',
         isEmailVerified: true,
       });
+
       const session = makeSession();
+
       const tokens = makeTokensPair();
 
       userService.getByGoogleId.mockResolvedValue(null);
+
       userService.getByEmail.mockResolvedValue(null);
+
       userService.create.mockResolvedValue(newUser as never);
+
       userService.update.mockResolvedValue(newUser as never);
+
       mockedGenerateSessionId.mockReturnValue('session-uuid');
+
       sessionService.getOrCreate.mockResolvedValue(session as never);
+
       tokenService.generateTokensPair.mockResolvedValue(tokens);
 
       const result = await service.googleLogin(googleLoginDto, ip, userAgent);
@@ -554,6 +654,7 @@ describe('AuthService', () => {
           lastActiveAt: expect.any(Date) as Date,
         }),
       );
+
       expect(result).toEqual(tokens);
     });
 
@@ -563,42 +664,67 @@ describe('AuthService', () => {
         name: undefined,
       });
 
-      const newUser = makeUser({ googleId: 'google-id-123' });
+      const newUser = makeUser({
+        googleId: 'google-id-123',
+      });
+
       userService.getByGoogleId.mockResolvedValue(null);
+
       userService.getByEmail.mockResolvedValue(null);
+
       userService.create.mockResolvedValue(newUser as never);
+
       userService.update.mockResolvedValue(newUser as never);
+
       sessionService.getOrCreate.mockResolvedValue(makeSession() as never);
+
       tokenService.generateTokensPair.mockResolvedValue(makeTokensPair());
 
       await service.googleLogin(googleLoginDto, ip, userAgent);
 
       expect(userService.create).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'User' }),
+        expect.objectContaining({
+          name: 'User',
+        }),
       );
     });
 
     it('should always update lastLoginAt after login', async () => {
-      const user = makeUser({ googleId: 'google-id-123' });
+      const user = makeUser({
+        googleId: 'google-id-123',
+      });
+
       userService.getByGoogleId.mockResolvedValue(user as never);
+
       userService.update.mockResolvedValue(user as never);
+
       sessionService.getOrCreate.mockResolvedValue(makeSession() as never);
+
       tokenService.generateTokensPair.mockResolvedValue(makeTokensPair());
 
       await service.googleLogin(googleLoginDto, ip, userAgent);
 
       expect(userService.update).toHaveBeenCalledWith(
         user.id,
-        expect.objectContaining({ lastLoginAt: expect.any(Date) as Date }),
+        expect.objectContaining({
+          lastLoginAt: expect.any(Date) as Date,
+        }),
       );
     });
 
     it('should call generateSessionId with correct params', async () => {
-      const user = makeUser({ googleId: 'google-id-123' });
+      const user = makeUser({
+        googleId: 'google-id-123',
+      });
+
       userService.getByGoogleId.mockResolvedValue(user as never);
+
       userService.update.mockResolvedValue(user as never);
+
       mockedGenerateSessionId.mockReturnValue('session-uuid');
+
       sessionService.getOrCreate.mockResolvedValue(makeSession() as never);
+
       tokenService.generateTokensPair.mockResolvedValue(makeTokensPair());
 
       await service.googleLogin(googleLoginDto, ip, userAgent);
@@ -608,6 +734,7 @@ describe('AuthService', () => {
         ip,
         userAgent,
       );
+
       expect(sessionService.getOrCreate).toHaveBeenCalledWith(
         'session-uuid',
         user.id,
@@ -616,7 +743,7 @@ describe('AuthService', () => {
 
     it('should throw if verifyGoogleToken fails', async () => {
       googleAuthService.verifyGoogleToken.mockRejectedValue(
-        new UnauthorizedException('Authorization failed'),
+        new UnauthorizedException(),
       );
 
       await expect(

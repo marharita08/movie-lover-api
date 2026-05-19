@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import { Session } from 'src/entities';
 import { UserService } from 'src/modules/user/user.service';
 
@@ -11,6 +13,7 @@ export class SessionService {
     @InjectRepository(Session)
     private sessionRepository: Repository<Session>,
     private userService: UserService,
+    private i18n: I18nService,
   ) {}
 
   async getOrCreate(
@@ -41,7 +44,9 @@ export class SessionService {
     });
 
     if (!session || !session.user) {
-      throw new NotFoundException('Session not found');
+      throw new NotFoundException(
+        this.i18n.t(TranslationKeys.ERROR_SESSION_NOT_FOUND),
+      );
     }
 
     await this.userService.update(session.user.id, {

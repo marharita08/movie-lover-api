@@ -1,6 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { MoreThan, Repository } from 'typeorm';
 
 import { ResetPasswordToken } from 'src/entities';
@@ -46,6 +47,12 @@ describe('ResetPasswordTokenService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        {
+          provide: I18nService,
+          useValue: {
+            t: jest.fn((key: string) => key),
+          },
+        },
         ResetPasswordTokenService,
         {
           provide: getRepositoryToken(ResetPasswordToken),
@@ -149,7 +156,7 @@ describe('ResetPasswordTokenService', () => {
 
       await expect(
         service.verifyAndDelete('user-uuid-1', 'plain_token'),
-      ).rejects.toThrow(new UnauthorizedException('Invalid or expired token'));
+      ).rejects.toThrow(UnauthorizedException);
 
       expect(hashService.compare).not.toHaveBeenCalled();
       expect(resetPasswordTokenRepository.delete).not.toHaveBeenCalled();
@@ -162,7 +169,7 @@ describe('ResetPasswordTokenService', () => {
 
       await expect(
         service.verifyAndDelete('user-uuid-1', 'wrong_token'),
-      ).rejects.toThrow(new UnauthorizedException('Invalid or expired token'));
+      ).rejects.toThrow(UnauthorizedException);
 
       expect(resetPasswordTokenRepository.delete).not.toHaveBeenCalled();
     });

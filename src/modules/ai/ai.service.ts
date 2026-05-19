@@ -152,6 +152,7 @@ export class AiService {
 
     return Promise.all(uploadPromises);
   }
+
   private buildSystemPromptWithFiles(
     listsCount: number,
     totalItems: number,

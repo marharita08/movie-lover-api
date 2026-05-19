@@ -1,7 +1,9 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import { File } from 'src/entities';
 import { StorageService } from 'src/modules/storage/storage.service';
 
@@ -13,6 +15,7 @@ export class FileService {
     @InjectRepository(File)
     private readonly fileRepository: Repository<File>,
     private readonly storageService: StorageService,
+    private readonly i18n: I18nService,
   ) {}
 
   async upload(file: Express.Multer.File, userId: string): Promise<File> {
@@ -34,7 +37,9 @@ export class FileService {
     const file = await this.fileRepository.findOne({ where: { id } });
 
     if (!file) {
-      throw new NotFoundException('File not found');
+      throw new NotFoundException(
+        this.i18n.t(TranslationKeys.ERROR_FILE_NOT_FOUND),
+      );
     }
 
     return file;
@@ -44,7 +49,9 @@ export class FileService {
     const file = await this.fileRepository.findOne({ where: { id: fileId } });
 
     if (!file) {
-      throw new NotFoundException('File not found');
+      throw new NotFoundException(
+        this.i18n.t(TranslationKeys.ERROR_FILE_NOT_FOUND),
+      );
     }
 
     await this.storageService.deleteFile(file.key);

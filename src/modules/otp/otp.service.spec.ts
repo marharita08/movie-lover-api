@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
 import { Otp, OtpPurpose } from 'src/entities';
@@ -32,6 +33,12 @@ describe('OtpService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        {
+          provide: I18nService,
+          useValue: {
+            t: jest.fn((key: string) => key),
+          },
+        },
         OtpService,
         { provide: getRepositoryToken(Otp), useFactory: mockOtpRepository },
       ],
@@ -114,7 +121,7 @@ describe('OtpService', () => {
 
       await expect(
         service.create('test@example.com', OtpPurpose.EMAIL_VERIFICATION),
-      ).rejects.toThrow(/Please wait \d+ seconds before resending OTP/);
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -148,7 +155,7 @@ describe('OtpService', () => {
           9999,
           OtpPurpose.EMAIL_VERIFICATION,
         ),
-      ).rejects.toThrow(new BadRequestException('Invalid or expired OTP'));
+      ).rejects.toThrow(BadRequestException);
 
       expect(otpRepository.remove).not.toHaveBeenCalled();
     });
@@ -163,7 +170,7 @@ describe('OtpService', () => {
           1234,
           OtpPurpose.EMAIL_VERIFICATION,
         ),
-      ).rejects.toThrow(new BadRequestException('Invalid or expired OTP'));
+      ).rejects.toThrow(BadRequestException);
 
       expect(otpRepository.remove).not.toHaveBeenCalled();
     });

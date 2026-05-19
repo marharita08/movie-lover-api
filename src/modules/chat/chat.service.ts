@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import {
   ChatMessage,
   ListStatus,
@@ -16,7 +18,6 @@ import { ListService } from '../list/list.service';
 import { TmdbService } from '../tmdb/tmdb.service';
 import { UserDto } from '../user/dto';
 
-import { WELCOME_MESSAGE } from './const';
 import { ChatHistoryQueryDto } from './dto';
 
 @Injectable()
@@ -29,6 +30,7 @@ export class ChatService {
     @InjectRepository(ChatMessage)
     private readonly chatMessageRepository: Repository<ChatMessage>,
     private readonly tmdbService: TmdbService,
+    private readonly i18n: I18nService,
   ) {}
 
   async processUserMessage(user: UserDto, message: string) {
@@ -124,11 +126,12 @@ export class ChatService {
     }
 
     const isAnySuccess = successfulMediaItems.length > 0;
+    const aiChatMessageText: string = isAnySuccess
+      ? aiResponse.text
+      : this.i18n.t(TranslationKeys.ERROR_RECOMMENDATIONS_FAILED);
     const aiChatMessage = this.chatMessageRepository.create({
       userId: user.id,
-      text: isAnySuccess
-        ? aiResponse.text
-        : 'An error occurred while generating recommendations. Please try again.',
+      text: aiChatMessageText,
       author: MessageAuthor.ASSISTANT,
       mediaItems: isAnySuccess ? successfulMediaItems : null,
       isError: !isAnySuccess,
@@ -148,9 +151,12 @@ export class ChatService {
     });
 
     if (totalResults === 0) {
+      const welcomeMessageText: string = this.i18n.t(
+        TranslationKeys.CHAT_WELCOME_MESSAGE,
+      );
       const welcomeMessage = this.chatMessageRepository.create({
         userId,
-        text: WELCOME_MESSAGE,
+        text: welcomeMessageText,
         author: MessageAuthor.ASSISTANT,
         mediaItems: null,
       });

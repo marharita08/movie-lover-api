@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import { validate } from 'class-validator';
+import { I18nService } from 'nestjs-i18n';
 import * as Papa from 'papaparse';
+
+import { TranslationKeys } from 'src/const/translations/keys';
 
 export interface ParseOptions {
   header?: boolean;
@@ -17,6 +20,8 @@ export interface ParseOptions {
 
 @Injectable()
 export class CsvParserService {
+  constructor(private readonly i18n: I18nService) {}
+
   async parse<T = any>(
     csvContent: string,
     options: ParseOptions = {},
@@ -55,7 +60,9 @@ export class CsvParserService {
     const rows = await this.parse<T>(csvContent, options);
 
     if (rows.length === 0) {
-      throw new BadRequestException('CSV file is empty');
+      throw new BadRequestException(
+        this.i18n.t(TranslationKeys.ERROR_CSV_EMPTY),
+      );
     }
 
     const MAX_ERRORS_TO_REPORT = 10;
@@ -102,11 +109,14 @@ export class CsvParserService {
         .map((e) => `Row ${e.row}: ${e.errors[0]}`)
         .join('. ');
 
-      const hasMoreErrors = totalErrorRows > 5;
-
-      const message = hasMoreErrors
-        ? `Validation failed for at least ${totalErrorRows} rows. First errors - ${errorDetails}. Please fix the errors and try again.`
-        : `Validation failed. ${errorDetails}`;
+      const message =
+        totalErrorRows > 5
+          ? this.i18n.t(TranslationKeys.VALIDATION_FAILED_ROWS, {
+              args: { count: totalErrorRows, details: errorDetails },
+            })
+          : this.i18n.t(TranslationKeys.VALIDATION_FAILED, {
+              args: { details: errorDetails },
+            });
 
       throw new BadRequestException(message);
     }

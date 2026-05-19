@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import {
   ChatMessage,
   List,
@@ -15,7 +17,6 @@ import { ListService } from '../list/list.service';
 import { TmdbService } from '../tmdb/tmdb.service';
 
 import { ChatService } from './chat.service';
-import { WELCOME_MESSAGE } from './const';
 
 describe('ChatService', () => {
   let service: ChatService;
@@ -31,6 +32,12 @@ describe('ChatService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatService,
+        {
+          provide: I18nService,
+          useValue: {
+            t: jest.fn((key: string) => key),
+          },
+        },
         {
           provide: AiService,
           useValue: {
@@ -103,13 +110,17 @@ describe('ChatService', () => {
 
     beforeEach(() => {
       listService.findAll.mockResolvedValue(mockLists);
+
       chatMessageRepository.create.mockImplementation(
         (data: any) => data as ChatMessage,
       );
+
       chatMessageRepository.save.mockImplementation((msg) =>
         Promise.resolve(msg as ChatMessage),
       );
+
       chatMessageRepository.count.mockResolvedValue(1);
+
       chatMessageRepository.find.mockResolvedValue(mockChatHistory.results);
     });
 
@@ -125,19 +136,8 @@ describe('ChatService', () => {
         results: [
           {
             id: 123,
-            adult: false,
-            backdropPath: '/backdrop.jpg',
-            genreIds: [28, 12],
-            originalLanguage: 'en',
-            originalTitle: 'Inception',
-            overview: 'A thief who steals corporate secrets...',
-            popularity: 29.780826,
             posterPath: '/poster.jpg',
-            releaseDate: '2010-07-16',
             title: 'Inception',
-            video: false,
-            voteAverage: 8.4,
-            voteCount: 14075,
           },
         ],
         page: 1,
@@ -146,7 +146,9 @@ describe('ChatService', () => {
       };
 
       aiService.getRecommendations.mockResolvedValue(mockAiResponse);
-      tmdbService.searchMovies.mockResolvedValue(mockMovieSearchResult);
+      tmdbService.searchMovies.mockResolvedValue(
+        mockMovieSearchResult as never,
+      );
 
       await service.processUserMessage(
         mockUser as never,
@@ -159,6 +161,7 @@ describe('ChatService', () => {
         author: MessageAuthor.USER,
         mediaItems: null,
       });
+
       expect(chatMessageRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: mockUserId,
@@ -167,30 +170,26 @@ describe('ChatService', () => {
         }),
       );
 
-      // Verify lists were fetched
       expect(listService.findAll).toHaveBeenCalledWith(
         { status: ListStatus.COMPLETED, page: 1, limit: 10 },
         mockUserId,
       );
 
-      // Verify AI was called with correct data
       expect(aiService.getRecommendations).toHaveBeenCalledWith(
         mockLists.results,
         mockChatHistory.results,
       );
 
-      // Verify TMDB search was called
       expect(tmdbService.searchMovies).toHaveBeenCalledWith({
         query: 'Inception',
         year: 2010,
         language: 'en-US',
       });
 
-      // Verify AI response was saved
       expect(chatMessageRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: mockUserId,
-          text: 'Here are my recommendations',
+          text: mockAiResponse.text,
           author: MessageAuthor.ASSISTANT,
           mediaItems: [
             {
@@ -217,19 +216,8 @@ describe('ChatService', () => {
         results: [
           {
             id: 456,
-            adult: false,
-            backdropPath: '/backdrop.jpg',
-            genreIds: [18, 80],
-            originCountry: ['US'],
-            originalLanguage: 'en',
-            originalName: 'Breaking Bad',
-            overview: 'A high school chemistry teacher...',
-            popularity: 369.594,
             posterPath: '/tv-poster.jpg',
-            firstAirDate: '2008-01-20',
             name: 'Breaking Bad',
-            voteAverage: 8.9,
-            voteCount: 12345,
           },
         ],
         page: 1,
@@ -238,7 +226,8 @@ describe('ChatService', () => {
       };
 
       aiService.getRecommendations.mockResolvedValue(mockAiResponse);
-      tmdbService.searchTVShows.mockResolvedValue(mockTVSearchResult);
+
+      tmdbService.searchTVShows.mockResolvedValue(mockTVSearchResult as never);
 
       await service.processUserMessage(mockUser as never, 'Recommend TV shows');
 
@@ -271,57 +260,27 @@ describe('ChatService', () => {
         ],
       };
 
-      const mockMovieSearchResult = {
+      aiService.getRecommendations.mockResolvedValue(mockAiResponse);
+
+      tmdbService.searchMovies.mockResolvedValue({
         results: [
           {
             id: 123,
-            adult: false,
-            backdropPath: null,
-            genreIds: [28],
-            originalLanguage: 'en',
-            originalTitle: 'Inception',
-            overview: 'Overview',
-            popularity: 29.78,
             posterPath: '/movie.jpg',
-            releaseDate: '2010-07-16',
             title: 'Inception',
-            video: false,
-            voteAverage: 8.4,
-            voteCount: 14075,
           },
         ],
-        page: 1,
-        totalPages: 1,
-        totalResults: 1,
-      };
+      } as never);
 
-      const mockTVSearchResult = {
+      tmdbService.searchTVShows.mockResolvedValue({
         results: [
           {
             id: 456,
-            adult: false,
-            backdropPath: null,
-            genreIds: [18],
-            originCountry: ['US'],
-            originalLanguage: 'en',
-            originalName: 'Breaking Bad',
-            overview: 'Overview',
-            popularity: 369.59,
             posterPath: '/tv.jpg',
-            firstAirDate: '2008-01-20',
             name: 'Breaking Bad',
-            voteAverage: 8.9,
-            voteCount: 12345,
           },
         ],
-        page: 1,
-        totalPages: 1,
-        totalResults: 1,
-      };
-
-      aiService.getRecommendations.mockResolvedValue(mockAiResponse);
-      tmdbService.searchMovies.mockResolvedValue(mockMovieSearchResult);
-      tmdbService.searchTVShows.mockResolvedValue(mockTVSearchResult);
+      } as never);
 
       await service.processUserMessage(
         mockUser as never,
@@ -334,14 +293,20 @@ describe('ChatService', () => {
       expect(chatMessageRepository.save).toHaveBeenLastCalledWith(
         expect.objectContaining({
           mediaItems: expect.arrayContaining([
-            expect.objectContaining({ type: MediaType.MOVIE, id: 123 }),
-            expect.objectContaining({ type: MediaType.TV, id: 456 }),
+            expect.objectContaining({
+              type: MediaType.MOVIE,
+              id: 123,
+            }),
+            expect.objectContaining({
+              type: MediaType.TV,
+              id: 456,
+            }),
           ]),
         }),
       );
     });
 
-    it('should handle when movie is not found in TMDB', async () => {
+    it('should return error response when movie is not found', async () => {
       const mockAiResponse = {
         text: 'Recommendations',
         recommendations: [
@@ -350,18 +315,19 @@ describe('ChatService', () => {
       };
 
       aiService.getRecommendations.mockResolvedValue(mockAiResponse);
+
       tmdbService.searchMovies.mockResolvedValue({
         results: [],
         page: 1,
         totalPages: 0,
         totalResults: 0,
-      });
+      } as never);
 
       await service.processUserMessage(mockUser as never, 'Test message');
 
       expect(chatMessageRepository.save).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          text: 'An error occurred while generating recommendations. Please try again.',
+          text: TranslationKeys.ERROR_RECOMMENDATIONS_FAILED,
           mediaItems: null,
           isError: true,
         }),
@@ -377,45 +343,27 @@ describe('ChatService', () => {
         ],
       };
 
-      const mockMovieSearchResult = {
-        results: [
-          {
-            id: 123,
-            adult: false,
-            backdropPath: null,
-            genreIds: [28],
-            originalLanguage: 'en',
-            originalTitle: 'Inception',
-            overview: 'Overview',
-            popularity: 29.78,
-            posterPath: '/poster.jpg',
-            releaseDate: '2010-07-16',
-            title: 'Inception',
-            video: false,
-            voteAverage: 8.4,
-            voteCount: 14075,
-          },
-        ],
-        page: 1,
-        totalPages: 1,
-        totalResults: 1,
-      };
-
       aiService.getRecommendations.mockResolvedValue(mockAiResponse);
+
       tmdbService.searchMovies
-        .mockResolvedValueOnce(mockMovieSearchResult)
+        .mockResolvedValueOnce({
+          results: [
+            {
+              id: 123,
+              posterPath: '/poster.jpg',
+              title: 'Inception',
+            },
+          ],
+        } as never)
         .mockResolvedValueOnce({
           results: [],
-          page: 1,
-          totalPages: 0,
-          totalResults: 0,
-        });
+        } as never);
 
       await service.processUserMessage(mockUser as never, 'Test message');
 
       expect(chatMessageRepository.save).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          text: 'Recommendations',
+          text: mockAiResponse.text,
           mediaItems: [
             {
               type: MediaType.MOVIE,
@@ -433,36 +381,25 @@ describe('ChatService', () => {
       const mockAiResponse = {
         text: 'Recommendations',
         recommendations: [
-          { title: 'Movie Without Poster', year: 2020, type: MediaType.MOVIE },
-        ],
-      };
-
-      const mockMovieSearchResult = {
-        results: [
           {
-            id: 789,
-            adult: false,
-            backdropPath: null,
-            genreIds: [28],
-            originalLanguage: 'en',
-            originalTitle: 'Movie Without Poster',
-            overview: 'Overview',
-            popularity: 29.78,
-            posterPath: null,
-            releaseDate: '2020-01-01',
             title: 'Movie Without Poster',
-            video: false,
-            voteAverage: 7.0,
-            voteCount: 1000,
+            year: 2020,
+            type: MediaType.MOVIE,
           },
         ],
-        page: 1,
-        totalPages: 1,
-        totalResults: 1,
       };
 
       aiService.getRecommendations.mockResolvedValue(mockAiResponse);
-      tmdbService.searchMovies.mockResolvedValue(mockMovieSearchResult);
+
+      tmdbService.searchMovies.mockResolvedValue({
+        results: [
+          {
+            id: 789,
+            posterPath: null,
+            title: 'Movie Without Poster',
+          },
+        ],
+      } as never);
 
       await service.processUserMessage(mockUser as never, 'Test');
 
@@ -487,18 +424,16 @@ describe('ChatService', () => {
       };
 
       aiService.getRecommendations.mockResolvedValue(mockAiResponse);
+
       tmdbService.searchMovies.mockResolvedValue({
         results: [],
-        page: 1,
-        totalPages: 0,
-        totalResults: 0,
-      });
+      } as never);
 
       await service.processUserMessage(mockUser as never, 'Test');
 
       expect(chatMessageRepository.save).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          text: 'An error occurred while generating recommendations. Please try again.',
+          text: TranslationKeys.ERROR_RECOMMENDATIONS_FAILED,
           mediaItems: null,
           isError: true,
         }),
@@ -534,12 +469,14 @@ describe('ChatService', () => {
       expect(chatMessageRepository.count).toHaveBeenCalledWith({
         where: { userId: mockUserId },
       });
+
       expect(chatMessageRepository.find).toHaveBeenCalledWith({
         where: { userId: mockUserId },
         order: { createdAt: 'DESC' },
         skip: 0,
         take: 20,
       });
+
       expect(result).toEqual({
         page: 1,
         results: mockMessages,
@@ -549,7 +486,7 @@ describe('ChatService', () => {
     });
 
     it('should handle pagination correctly', async () => {
-      const mockMessages = [{ id: 'msg-1', text: 'Message 1' } as ChatMessage];
+      const mockMessages = [{ id: 'msg-1' } as ChatMessage];
 
       chatMessageRepository.count.mockResolvedValue(50);
       chatMessageRepository.find.mockResolvedValue(mockMessages);
@@ -562,10 +499,11 @@ describe('ChatService', () => {
       expect(chatMessageRepository.find).toHaveBeenCalledWith({
         where: { userId: mockUserId },
         order: { createdAt: 'DESC' },
-        skip: 40, // (3 - 1) * 20
+        skip: 40,
         take: 20,
       });
-      expect(result.totalPages).toBe(3); // Math.ceil(50 / 20)
+
+      expect(result.totalPages).toBe(3);
       expect(result.page).toBe(3);
     });
 
@@ -578,7 +516,7 @@ describe('ChatService', () => {
       expect(chatMessageRepository.find).toHaveBeenCalledWith({
         where: { userId: mockUserId },
         order: { createdAt: 'DESC' },
-        skip: 0, // (1 - 1) * 20
+        skip: 0,
         take: 20,
       });
     });
@@ -587,13 +525,15 @@ describe('ChatService', () => {
       const welcomeMsg = {
         id: 'welcome-1',
         userId: mockUserId,
-        text: WELCOME_MESSAGE,
+        text: TranslationKeys.CHAT_WELCOME_MESSAGE,
         author: MessageAuthor.ASSISTANT,
         mediaItems: null,
       } as ChatMessage;
 
       chatMessageRepository.count.mockResolvedValue(0);
+
       chatMessageRepository.create.mockReturnValue(welcomeMsg);
+
       chatMessageRepository.save.mockResolvedValue(welcomeMsg);
 
       const result = await service.getChatHistory(mockUserId, {
@@ -603,11 +543,13 @@ describe('ChatService', () => {
 
       expect(chatMessageRepository.create).toHaveBeenCalledWith({
         userId: mockUserId,
-        text: WELCOME_MESSAGE,
+        text: TranslationKeys.CHAT_WELCOME_MESSAGE,
         author: MessageAuthor.ASSISTANT,
         mediaItems: null,
       });
+
       expect(chatMessageRepository.save).toHaveBeenCalledWith(welcomeMsg);
+
       expect(result).toEqual({
         page: 1,
         results: [welcomeMsg],
