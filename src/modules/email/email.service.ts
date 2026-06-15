@@ -9,6 +9,9 @@ import {
   TransactionalEmailsApi,
   TransactionalEmailsApiApiKeys,
 } from '@sendinblue/client';
+import { I18nService } from 'nestjs-i18n';
+
+import { TranslationKeys } from 'src/const/translations/keys';
 
 @Injectable()
 export class EmailService {
@@ -17,7 +20,10 @@ export class EmailService {
   private readonly logger: Logger;
   private readonly client: TransactionalEmailsApi;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly i18n: I18nService,
+  ) {
     const apiKey = this.configService.get<string>('BREVO_API_KEY');
     if (!apiKey) {
       throw new Error('BREVO_API_KEY is not set');
@@ -53,7 +59,9 @@ export class EmailService {
       await this.client.sendTransacEmail(sendSmtpEmail);
     } catch (error) {
       this.logger.error('Error sending email:', error);
-      throw new InternalServerErrorException('Unable to send email');
+      throw new InternalServerErrorException(
+        this.i18n.t(TranslationKeys.ERROR_EMAIL_SEND_FAILED),
+      );
     }
   }
 }

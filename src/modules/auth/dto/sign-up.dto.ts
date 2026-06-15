@@ -1,10 +1,14 @@
 import {
   IsEmail,
+  IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
   MinLength,
 } from 'class-validator';
+
+import { Language } from 'src/entities';
 
 import { PASSWORD_REGEX } from '../const';
 
@@ -25,4 +29,8 @@ export class SignUpDto {
       'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number and one special character',
   })
   password: string;
+
+  @IsEnum(Language)
+  @IsOptional()
+  language?: Language;
 }

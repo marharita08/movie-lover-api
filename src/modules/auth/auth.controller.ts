@@ -54,7 +54,7 @@ export class AuthController {
     @Ip() ip: string,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const { accessToken, refreshToken } = await this.authService.login(
+    const { refreshToken, ...rest } = await this.authService.login(
       loginDto,
       ip,
       userAgent,
@@ -62,7 +62,7 @@ export class AuthController {
 
     response.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
 
-    return { accessToken };
+    return rest;
   }
 
   @Post('verify-email')
@@ -166,7 +166,7 @@ export class AuthController {
     @Ip() ip: string,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const { accessToken, refreshToken } = await this.authService.googleLogin(
+    const { refreshToken, ...rest } = await this.authService.googleLogin(
       dto,
       ip,
       userAgent,
@@ -174,6 +174,6 @@ export class AuthController {
 
     response.cookie('refreshToken', refreshToken, COOKIE_OPTIONS);
 
-    return { accessToken };
+    return rest;
   }
 }

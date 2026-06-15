@@ -7,9 +7,12 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { ILike, Repository } from 'typeorm';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import {
+  Language,
   List,
   ListMediaItem,
   ListStatus,
@@ -19,6 +22,8 @@ import {
 import { CsvParserService } from 'src/modules/csv-parser/csv-parser.service';
 import { FileService } from 'src/modules/file/file.service';
 import { ListMediaItemService } from 'src/modules/list-media-item/list-media-item.service';
+
+import { UserDto } from '../user/dto';
 
 import {
   CreateListDto,
@@ -43,6 +48,7 @@ export class ListService {
     private readonly fileService: FileService,
     private readonly csvParserService: CsvParserService,
     private readonly listMediaItemService: ListMediaItemService,
+    private readonly i18n: I18nService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -99,21 +105,23 @@ export class ListService {
     this.logger.log(`Completed deleting ${totalProcessed} failed lists`);
   }
 
-  async create(dto: CreateListDto, userId: string) {
+  async create(dto: CreateListDto, user: UserDto) {
     const file = await this.fileService.findOne(dto.fileId);
 
-    if (!file || file.userId !== userId) {
-      throw new ForbiddenException('File not found or access denied');
+    if (!file || file.userId !== user.id) {
+      throw new ForbiddenException(
+        this.i18n.t(TranslationKeys.ERROR_FILE_NOT_FOUND_OR_ACCESS_DENIED),
+      );
     }
 
     const list = this.listRepository.create({
       name: dto.name,
       fileId: dto.fileId,
-      userId,
+      userId: user.id,
     });
 
     const savedList = await this.listRepository.save(list);
-    void this.processList(savedList.id);
+    void this.processList(savedList.id, user.language || Language.ENGLISH);
 
     return savedList;
   }
@@ -159,7 +167,9 @@ export class ListService {
     });
 
     if (!list) {
-      throw new NotFoundException(`List with ID ${id} not found`);
+      throw new NotFoundException(
+        this.i18n.t(TranslationKeys.ERROR_LIST_NOT_FOUND, { args: { id } }),
+      );
     }
 
     return list;
@@ -171,7 +181,7 @@ export class ListService {
     await this.listRepository.delete(list.id);
   }
 
-  private async processList(listId: string): Promise<void> {
+  private async processList(listId: string, language: Language): Promise<void> {
     try {
       const list = await this.listRepository.findOne({ where: { id: listId } });
       if (!list) return;
@@ -192,7 +202,7 @@ export class ListService {
           .filter((row) => !row['Title Type']?.includes('Episode'));
         await Promise.all(
           batch.map((row, index) =>
-            this.listMediaItemService.add(list.id, row, i + index),
+            this.listMediaItemService.add(list.id, row, i + index, language),
           ),
         );
 
@@ -648,10 +658,16 @@ export class ListService {
 
   private checkListStatus(list: List) {
     if (list.status !== ListStatus.COMPLETED) {
+      if (list.status === ListStatus.PROCESSING) {
+        throw new BadRequestException(
+          this.i18n.t(TranslationKeys.ERROR_LIST_STILL_PROCESSING),
+        );
+      }
+
       throw new BadRequestException(
-        list.status === ListStatus.PROCESSING
-          ? 'List is still processing. Please try again later.'
-          : `List processing failed: ${list.errorMessage || 'Unknown error.'}`,
+        this.i18n.t(TranslationKeys.ERROR_LIST_PROCESSING_FAILED, {
+          args: { error: list.errorMessage || 'Unknown error.' },
+        }),
       );
     }
   }

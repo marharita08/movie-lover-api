@@ -11,6 +11,8 @@ import {
 
 import { GetUser } from 'src/modules/auth/decorators';
 
+import { UserDto } from '../user/dto';
+
 import {
   CreateListDto,
   GetListsQueryDto,
@@ -25,8 +27,8 @@ export class ListController {
   constructor(private readonly listService: ListService) {}
 
   @Post()
-  create(@Body() dto: CreateListDto, @GetUser('id') userId: string) {
-    return this.listService.create(dto, userId);
+  create(@Body() dto: CreateListDto, @GetUser() user: UserDto) {
+    return this.listService.create(dto, user);
   }
 
   @Get()

@@ -10,8 +10,10 @@ import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import rateLimit from 'axios-rate-limit';
 import type { Cache } from 'cache-manager';
+import { I18nService } from 'nestjs-i18n';
 
-import { MediaType } from 'src/entities';
+import { TranslationKeys } from 'src/const/translations/keys';
+import { Language, MediaType } from 'src/entities';
 import { toSnakeCase } from 'src/utils';
 
 import {
@@ -51,6 +53,7 @@ export class TmdbService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly configService: ConfigService,
     private readonly tmdbResponseMapperService: TmdbResponseMapperService,
+    private readonly i18n: I18nService,
   ) {
     const token = this.configService.get<string>('TMDB_TOKEN');
     const baseUrl = this.configService.get<string>('TMDB_URL');
@@ -77,20 +80,23 @@ export class TmdbService {
   async discoverMovies(
     query: DiscoverMoviesQueryDto,
   ): Promise<MoviesResponseDto> {
+    const language = query.language || Language.ENGLISH;
     const shouldCache = !query.page || query.page <= 5;
 
+    const updatedQuery = { ...query, language };
+
     if (!shouldCache) {
-      return this.fetchDiscoverMoviesFromApi(query);
+      return this.fetchDiscoverMoviesFromApi(updatedQuery);
     }
 
-    const cacheKey = this.generateCacheKey('discover:movies', query);
+    const cacheKey = this.generateCacheKey('discover:movies', updatedQuery);
     const cached = await this.cacheManager.get(cacheKey);
 
     if (cached) {
       return cached as MoviesResponseDto;
     }
 
-    const data = await this.fetchDiscoverMoviesFromApi(query);
+    const data = await this.fetchDiscoverMoviesFromApi(updatedQuery);
     await this.cacheManager.set(cacheKey, data, 3600000);
 
     return data;
@@ -111,13 +117,13 @@ export class TmdbService {
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to fetch movies',
+          : this.i18n.t(TranslationKeys.ERROR_MOVIES_FETCH_FAILED),
       );
     }
   }
 
-  async movieDetails(id: number) {
-    const cacheKey = `movie:${id}`;
+  async movieDetails(id: number, language: Language = Language.ENGLISH) {
+    const cacheKey = `movie:${id}:${language}`;
 
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) {
@@ -127,6 +133,7 @@ export class TmdbService {
     try {
       const { data } = await this.http.get<TmdbMovieDetailsResponseDto>(
         `/movie/${id}`,
+        { params: { language } },
       );
       const mapped = this.tmdbResponseMapperService.mapMovieDetails(data);
 
@@ -138,22 +145,24 @@ export class TmdbService {
 
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new NotFoundException(
-          error.response.data?.status_message || 'Movie not found',
+          error.response.data?.status_message ||
+            this.i18n.t(TranslationKeys.ERROR_MOVIE_NOT_FOUND),
         );
       }
 
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to fetch movie details',
+          : this.i18n.t(TranslationKeys.ERROR_MOVIE_DETAILS_FETCH_FAILED),
       );
     }
   }
 
   async findMediaByImdbId(
     imdbId: string,
+    language: Language = Language.ENGLISH,
   ): Promise<FindMediaResponseDto | null> {
-    const cacheKey = `media:${imdbId}`;
+    const cacheKey = `media:${imdbId}:${language}`;
 
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) {
@@ -164,7 +173,7 @@ export class TmdbService {
       const { data } = await this.http.get<TmdbFindResponseDto>(
         `/find/${imdbId}`,
         {
-          params: { external_source: 'imdb_id' },
+          params: { external_source: 'imdb_id', language },
         },
       );
 
@@ -197,8 +206,11 @@ export class TmdbService {
     }
   }
 
-  async getTVShowDetails(tvShowId: number): Promise<TvShowDetailsResponseDto> {
-    const cacheKey = `tv:${tvShowId}`;
+  async getTVShowDetails(
+    tvShowId: number,
+    language: Language = Language.ENGLISH,
+  ): Promise<TvShowDetailsResponseDto> {
+    const cacheKey = `tv:${tvShowId}:${language}`;
 
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) {
@@ -209,7 +221,7 @@ export class TmdbService {
       const { data } = await this.http.get<TmdbTvShowDetailsResponseDto>(
         `/tv/${tvShowId}`,
         {
-          params: { append_to_response: 'external_ids' },
+          params: { append_to_response: 'external_ids', language },
         },
       );
 
@@ -223,20 +235,24 @@ export class TmdbService {
 
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new NotFoundException(
-          error.response.data?.status_message || 'TV show not found',
+          error.response.data?.status_message ||
+            this.i18n.t(TranslationKeys.ERROR_TV_SHOW_NOT_FOUND),
         );
       }
 
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to fetch tv show details',
+          : this.i18n.t(TranslationKeys.ERROR_TV_SHOW_DETAILS_FETCH_FAILED),
       );
     }
   }
 
-  async getMovieCredits(movieId: number): Promise<CreditsResponseDto | null> {
-    const cacheKey = `movie-credits:${movieId}`;
+  async getMovieCredits(
+    movieId: number,
+    language: Language = Language.ENGLISH,
+  ): Promise<CreditsResponseDto | null> {
+    const cacheKey = `movie-credits:${movieId}:${language}`;
 
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) {
@@ -246,6 +262,7 @@ export class TmdbService {
     try {
       const { data } = await this.http.get<TmdbCreditsResponseDto>(
         `/movie/${movieId}/credits`,
+        { params: { language } },
       );
       const mapped = this.tmdbResponseMapperService.mapCredits(data);
 
@@ -258,8 +275,11 @@ export class TmdbService {
     }
   }
 
-  async getTVShowCredits(tvShowId: number): Promise<CreditsResponseDto | null> {
-    const cacheKey = `tv-credits:${tvShowId}`;
+  async getTVShowCredits(
+    tvShowId: number,
+    language: Language = Language.ENGLISH,
+  ): Promise<CreditsResponseDto | null> {
+    const cacheKey = `tv-credits:${tvShowId}:${language}`;
 
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) {
@@ -269,6 +289,7 @@ export class TmdbService {
     try {
       const { data } = await this.http.get<TmdbCreditsResponseDto>(
         `/tv/${tvShowId}/aggregate_credits`,
+        { params: { language } },
       );
       const mapped = this.tmdbResponseMapperService.mapCredits(data);
 
@@ -281,8 +302,11 @@ export class TmdbService {
     }
   }
 
-  async getPerson(personId: number): Promise<PersonResponseDto> {
-    const cacheKey = `person:${personId}`;
+  async getPerson(
+    personId: number,
+    language: Language = Language.ENGLISH,
+  ): Promise<PersonResponseDto> {
+    const cacheKey = `person:${personId}:${language}`;
 
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) {
@@ -292,6 +316,7 @@ export class TmdbService {
     try {
       const { data } = await this.http.get<TmdbPersonResponseDto>(
         `/person/${personId}`,
+        { params: { language } },
       );
       const mapped = this.tmdbResponseMapperService.mapPerson(data);
 
@@ -303,14 +328,15 @@ export class TmdbService {
 
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new NotFoundException(
-          error.response.data?.status_message || 'Person not found',
+          error.response.data?.status_message ||
+            this.i18n.t(TranslationKeys.ERROR_PERSON_NOT_FOUND),
         );
       }
 
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to get person',
+          : this.i18n.t(TranslationKeys.ERROR_PERSON_FETCH_FAILED),
       );
     }
   }
@@ -318,11 +344,14 @@ export class TmdbService {
   async multiSearch(
     query: MultiSearchQueryDto,
   ): Promise<MultiSearchResponseDto> {
+    const language = query.language || Language.ENGLISH;
+    const updatedQuery = { ...query, language };
+
     try {
       const { data } = await this.http.get<TmdbMultiSearchResponseDto>(
         `/search/multi`,
         {
-          params: this.prepareQueryParams(query),
+          params: this.prepareQueryParams(updatedQuery),
         },
       );
       return this.tmdbResponseMapperService.mapMultiSearch(data);
@@ -331,17 +360,20 @@ export class TmdbService {
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to search',
+          : this.i18n.t(TranslationKeys.ERROR_SEARCH_FAILED),
       );
     }
   }
 
   async searchMovies(query: MovieSearchQueryDto): Promise<MoviesResponseDto> {
+    const language = query.language || Language.ENGLISH;
+    const updatedQuery = { ...query, language };
+
     try {
       const { data } = await this.http.get<TMDBMoviesResponseDto>(
         `/search/movie`,
         {
-          params: this.prepareQueryParams(query),
+          params: this.prepareQueryParams(updatedQuery),
         },
       );
       return this.tmdbResponseMapperService.mapMoviesResponse(data);
@@ -350,7 +382,7 @@ export class TmdbService {
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to search',
+          : this.i18n.t(TranslationKeys.ERROR_SEARCH_FAILED),
       );
     }
   }
@@ -358,11 +390,14 @@ export class TmdbService {
   async searchTVShows(
     query: TvShowSearchQueryDto,
   ): Promise<PaginatedResponseDto<TvShowResponseDto>> {
+    const language = query.language || Language.ENGLISH;
+    const updatedQuery = { ...query, language };
+
     try {
       const { data } = await this.http.get<
         TmdbPaginatedResponseDto<TmdbTvShowResponseDto>
       >(`/search/tv`, {
-        params: this.prepareQueryParams(query),
+        params: this.prepareQueryParams(updatedQuery),
       });
       return this.tmdbResponseMapperService.mapTvShows(data);
     } catch (error) {
@@ -370,7 +405,7 @@ export class TmdbService {
       throw new InternalServerErrorException(
         axios.isAxiosError(error) && error.response?.data?.status_message
           ? error.response.data.status_message
-          : 'Failed to search',
+          : this.i18n.t(TranslationKeys.ERROR_SEARCH_FAILED),
       );
     }
   }

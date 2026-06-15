@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Post, Query } from '@nestjs/common';
 
 import { GetUser } from '../auth/decorators';
+import { UserDto } from '../user/dto';
 
 import { ChatService } from './chat.service';
 import { ChatHistoryQueryDto } from './dto/chat-history-query.dto';
@@ -19,10 +20,10 @@ export class ChatController {
 
   @Post('message')
   async sendMessage(
-    @GetUser('id') userId: string,
+    @GetUser() user: UserDto,
     @Body('message') message: string,
   ) {
-    return this.chatService.processUserMessage(userId, message);
+    return this.chatService.processUserMessage(user, message);
   }
 
   @Delete('clear')

@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
 import { Session, User } from 'src/entities';
@@ -37,23 +38,36 @@ const makeSession = (overrides: Partial<Session> = {}): Session =>
 
 describe('SessionService', () => {
   let service: SessionService;
+
   let sessionRepository: jest.Mocked<Repository<Session>>;
+
   let userService: jest.Mocked<UserService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        {
+          provide: I18nService,
+          useValue: {
+            t: jest.fn((key: string) => key),
+          },
+        },
         SessionService,
         {
           provide: getRepositoryToken(Session),
           useFactory: mockSessionRepository,
         },
-        { provide: UserService, useFactory: mockUserService },
+        {
+          provide: UserService,
+          useFactory: mockUserService,
+        },
       ],
     }).compile();
 
     service = module.get(SessionService);
+
     sessionRepository = module.get(getRepositoryToken(Session));
+
     userService = module.get(UserService);
   });
 
@@ -62,7 +76,9 @@ describe('SessionService', () => {
   describe('getOrCreate', () => {
     it('should return existing session if found', async () => {
       const session = makeSession();
+
       const user = makeUser();
+
       sessionRepository.findOne.mockResolvedValue(session);
 
       const result = await service.getOrCreate(
@@ -72,17 +88,26 @@ describe('SessionService', () => {
       );
 
       expect(sessionRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 'session-uuid', userId: user.id },
+        where: {
+          id: 'session-uuid',
+          userId: user.id,
+        },
       });
+
       expect(sessionRepository.create).not.toHaveBeenCalled();
+
       expect(result).toBe(session);
     });
 
     it('should create and save new session if not found', async () => {
       const user = makeUser();
+
       const newSession = makeSession();
+
       sessionRepository.findOne.mockResolvedValue(null as never);
+
       sessionRepository.create.mockReturnValue(newSession);
+
       sessionRepository.save.mockResolvedValue(newSession);
 
       const result = await service.getOrCreate(
@@ -96,15 +121,23 @@ describe('SessionService', () => {
         userId: user.id,
         refreshToken: 'refresh-token',
       });
+
       expect(sessionRepository.save).toHaveBeenCalledWith(newSession);
+
       expect(result).toBe(newSession);
     });
 
     it('should create session without refreshToken if not provided', async () => {
       const user = makeUser();
-      const newSession = makeSession({ refreshToken: undefined });
+
+      const newSession = makeSession({
+        refreshToken: undefined,
+      });
+
       sessionRepository.findOne.mockResolvedValue(null as never);
+
       sessionRepository.create.mockReturnValue(newSession);
+
       sessionRepository.save.mockResolvedValue(newSession);
 
       await service.getOrCreate('session-uuid', user.id);
@@ -120,19 +153,27 @@ describe('SessionService', () => {
   describe('getById', () => {
     it('should return session and update user lastActiveAt', async () => {
       const session = makeSession();
+
       sessionRepository.findOne.mockResolvedValue(session);
+
       userService.update.mockResolvedValue(session.user as never);
 
       const result = await service.getById('session-uuid');
 
       expect(sessionRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 'session-uuid' },
+        where: {
+          id: 'session-uuid',
+        },
         relations: ['user'],
       });
+
       expect(userService.update).toHaveBeenCalledWith(
-        session?.user?.id,
-        expect.objectContaining({ lastActiveAt: expect.any(Date) as Date }),
+        session.user?.id,
+        expect.objectContaining({
+          lastActiveAt: expect.any(Date) as Date,
+        }),
       );
+
       expect(result).toBe(session);
     });
 
@@ -142,16 +183,21 @@ describe('SessionService', () => {
       await expect(service.getById('session-uuid')).rejects.toThrow(
         NotFoundException,
       );
+
       expect(userService.update).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if session has no user', async () => {
-      const session = makeSession({ user: undefined });
+      const session = makeSession({
+        user: undefined,
+      });
+
       sessionRepository.findOne.mockResolvedValue(session);
 
       await expect(service.getById('session-uuid')).rejects.toThrow(
         NotFoundException,
       );
+
       expect(userService.update).not.toHaveBeenCalled();
     });
   });
@@ -159,31 +205,43 @@ describe('SessionService', () => {
   describe('save', () => {
     it('should update refreshToken if session already exists', async () => {
       const existingSession = makeSession();
-      const updatedSession = makeSession({ refreshToken: 'new-refresh-token' });
+
+      const updatedSession = makeSession({
+        refreshToken: 'new-refresh-token',
+      });
+
       sessionRepository.findOne.mockResolvedValue(existingSession);
 
       await service.save(updatedSession);
 
       expect(existingSession.refreshToken).toBe('new-refresh-token');
+
       expect(sessionRepository.save).toHaveBeenCalledWith(existingSession);
+
       expect(sessionRepository.create).not.toHaveBeenCalled();
     });
 
     it('should create and save new session if not found', async () => {
       const session = makeSession();
+
       sessionRepository.findOne.mockResolvedValue(null as never);
+
       sessionRepository.create.mockReturnValue(session);
 
       await service.save(session);
 
       expect(sessionRepository.create).toHaveBeenCalledWith(session);
+
       expect(sessionRepository.save).toHaveBeenCalledWith(session);
     });
   });
 
   describe('deleteAllSessions', () => {
     it('should delete all sessions for given userId', async () => {
-      sessionRepository.delete.mockResolvedValue({ affected: 3, raw: [] });
+      sessionRepository.delete.mockResolvedValue({
+        affected: 3,
+        raw: [],
+      });
 
       await service.deleteAllSessions('user-uuid');
 

@@ -1,4 +1,5 @@
 import {
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -6,6 +7,8 @@ import {
   IsPositive,
   IsString,
 } from 'class-validator';
+
+import { Language } from 'src/entities';
 
 export class TvShowSearchQueryDto {
   @IsString()
@@ -20,4 +23,8 @@ export class TvShowSearchQueryDto {
   @IsInt()
   @IsPositive()
   page?: number;
+
+  @IsEnum(Language)
+  @IsOptional()
+  language?: Language;
 }

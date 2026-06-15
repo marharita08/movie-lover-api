@@ -2,10 +2,13 @@ import {
   IsBoolean,
   IsDate,
   IsEmail,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
 } from 'class-validator';
+
+import { Language } from 'src/entities';
 
 export class CreateUserDto {
   @IsString()
@@ -36,4 +39,8 @@ export class CreateUserDto {
   @IsBoolean()
   @IsOptional()
   isEmailVerified?: boolean;
+
+  @IsEnum(Language)
+  @IsOptional()
+  language?: Language;
 }

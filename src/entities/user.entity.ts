@@ -5,6 +5,11 @@ import { ChatMessage } from './chat-message.entity';
 import { File } from './file.entity';
 import { List } from './list.entity';
 
+export enum Language {
+  UKRAINIAN = 'uk-UA',
+  ENGLISH = 'en-US',
+}
+
 @Entity({ name: 'user' })
 export class User extends BaseEntity {
   @Column({ type: 'varchar', length: 255 })
@@ -27,6 +32,9 @@ export class User extends BaseEntity {
 
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
   googleId?: string;
+
+  @Column({ type: 'varchar', length: 255, default: Language.ENGLISH })
+  language: Language;
 
   @OneToMany(() => File, (file) => file.user)
   files: File[];

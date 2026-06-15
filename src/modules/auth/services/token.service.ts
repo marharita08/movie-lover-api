@@ -2,7 +2,9 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { StringValue } from 'ms';
+import { I18nService } from 'nestjs-i18n';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import { Session } from 'src/entities';
 
 import { JwtPayloadDto } from '../dto/jwt-payload.dto';
@@ -11,15 +13,18 @@ import { SessionService } from './session.service';
 
 @Injectable()
 export class TokenService {
-  private readonly INVALID_TOKEN_MESSAGE =
-    'Your token has expired or is not valid';
   private readonly logger = new Logger(TokenService.name);
 
   constructor(
     private jwtService: JwtService,
     private sessionService: SessionService,
     private configService: ConfigService,
+    private i18n: I18nService,
   ) {}
+
+  private get invalidTokenMessage(): string {
+    return this.i18n.t(TranslationKeys.ERROR_INVALID_TOKEN);
+  }
 
   public async generateTokensPair(session: Session) {
     const payload: JwtPayloadDto = { sessionId: session.id };
@@ -50,20 +55,20 @@ export class TokenService {
       });
 
       if (!payload.sessionId) {
-        throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
+        throw new UnauthorizedException(this.invalidTokenMessage);
       }
 
       const session = await this.sessionService.getById(
         payload.sessionId as string,
       );
       if (!session) {
-        throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
+        throw new UnauthorizedException(this.invalidTokenMessage);
       }
 
       return session;
     } catch (error) {
       this.logger.error('Error verifying access token', error);
-      throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
+      throw new UnauthorizedException(this.invalidTokenMessage);
     }
   }
 
@@ -74,7 +79,7 @@ export class TokenService {
       });
 
       if (!payload.sessionId) {
-        throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
+        throw new UnauthorizedException(this.invalidTokenMessage);
       }
 
       const session = await this.sessionService.getById(
@@ -82,13 +87,13 @@ export class TokenService {
       );
 
       if (!session || token !== session.refreshToken) {
-        throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
+        throw new UnauthorizedException(this.invalidTokenMessage);
       }
 
       return session;
     } catch (error) {
       this.logger.error('Error verifying refresh token', error);
-      throw new UnauthorizedException(this.INVALID_TOKEN_MESSAGE);
+      throw new UnauthorizedException(this.invalidTokenMessage);
     }
   }
 }

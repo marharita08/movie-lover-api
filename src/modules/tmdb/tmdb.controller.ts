@@ -6,6 +6,8 @@ import {
   Query,
 } from '@nestjs/common';
 
+import { Language } from 'src/entities';
+
 import { Public } from '../auth/decorators';
 
 import {
@@ -34,32 +36,37 @@ export class TmdbController {
   @Get('movie/:id')
   async getMovieDetails(
     @Param('id') id: string,
+    @Query('language') language?: Language,
   ): Promise<MovieDetailsResponseDto> {
     const idNumber = Number(id);
     if (Number.isNaN(idNumber)) {
       throw new BadRequestException('Invalid movie ID');
     }
-    return this.tmdbService.movieDetails(idNumber);
+    return this.tmdbService.movieDetails(idNumber, language);
   }
 
   @Get('tv/:id')
   async getTvShowDetails(
     @Param('id') id: string,
+    @Query('language') language?: Language,
   ): Promise<TvShowDetailsResponseDto> {
     const idNumber = Number(id);
     if (Number.isNaN(idNumber)) {
       throw new BadRequestException('Invalid TV show ID');
     }
-    return this.tmdbService.getTVShowDetails(idNumber);
+    return this.tmdbService.getTVShowDetails(idNumber, language);
   }
 
   @Get('person/:id')
-  async getPerson(@Param('id') id: string): Promise<PersonResponseDto> {
+  async getPerson(
+    @Param('id') id: string,
+    @Query('language') language?: Language,
+  ): Promise<PersonResponseDto> {
     const idNumber = Number(id);
     if (Number.isNaN(idNumber)) {
       throw new BadRequestException('Invalid person ID');
     }
-    return this.tmdbService.getPerson(idNumber);
+    return this.tmdbService.getPerson(idNumber, language);
   }
 
   @Get('search/multi')

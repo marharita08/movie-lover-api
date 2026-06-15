@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import {
   ChatMessage,
   ListStatus,
@@ -14,8 +16,8 @@ import { PaginatedResponseDto } from 'src/modules/tmdb/dto';
 import { AiService } from '../ai/ai.service';
 import { ListService } from '../list/list.service';
 import { TmdbService } from '../tmdb/tmdb.service';
+import { UserDto } from '../user/dto';
 
-import { WELCOME_MESSAGE } from './const';
 import { ChatHistoryQueryDto } from './dto';
 
 @Injectable()
@@ -28,23 +30,24 @@ export class ChatService {
     @InjectRepository(ChatMessage)
     private readonly chatMessageRepository: Repository<ChatMessage>,
     private readonly tmdbService: TmdbService,
+    private readonly i18n: I18nService,
   ) {}
 
-  async processUserMessage(userId: string, message: string) {
+  async processUserMessage(user: UserDto, message: string) {
     const userLists = await this.listService.findAll(
       { status: ListStatus.COMPLETED, page: 1, limit: 10 },
-      userId,
+      user.id,
     );
 
     const userChatMessage = this.chatMessageRepository.create({
-      userId,
+      userId: user.id,
       text: message,
       author: MessageAuthor.USER,
       mediaItems: null,
     });
     await this.chatMessageRepository.save(userChatMessage);
 
-    const chatHistory = await this.getChatHistory(userId, {
+    const chatHistory = await this.getChatHistory(user.id, {
       page: 1,
       limit: 11,
     });
@@ -61,6 +64,7 @@ export class ChatService {
             const movies = await this.tmdbService.searchMovies({
               query: recommendation.title,
               year: recommendation.year,
+              language: user.language,
             });
 
             if (!movies.results || movies.results.length === 0) {
@@ -80,6 +84,7 @@ export class ChatService {
             const tvShows = await this.tmdbService.searchTVShows({
               query: recommendation.title,
               year: recommendation.year,
+              language: user.language,
             });
 
             if (!tvShows.results || tvShows.results.length === 0) {
@@ -121,11 +126,12 @@ export class ChatService {
     }
 
     const isAnySuccess = successfulMediaItems.length > 0;
+    const aiChatMessageText: string = isAnySuccess
+      ? aiResponse.text
+      : this.i18n.t(TranslationKeys.ERROR_RECOMMENDATIONS_FAILED);
     const aiChatMessage = this.chatMessageRepository.create({
-      userId,
-      text: isAnySuccess
-        ? aiResponse.text
-        : 'An error occurred while generating recommendations. Please try again.',
+      userId: user.id,
+      text: aiChatMessageText,
       author: MessageAuthor.ASSISTANT,
       mediaItems: isAnySuccess ? successfulMediaItems : null,
       isError: !isAnySuccess,
@@ -145,9 +151,12 @@ export class ChatService {
     });
 
     if (totalResults === 0) {
+      const welcomeMessageText: string = this.i18n.t(
+        TranslationKeys.CHAT_WELCOME_MESSAGE,
+      );
       const welcomeMessage = this.chatMessageRepository.create({
         userId,
-        text: WELCOME_MESSAGE,
+        text: welcomeMessageText,
         author: MessageAuthor.ASSISTANT,
         mediaItems: null,
       });

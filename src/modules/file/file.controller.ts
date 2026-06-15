@@ -12,8 +12,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 
 import { GetUser } from 'src/modules/auth/decorators';
 
-import { CsvFileValidator } from './validators/csv-file.validator';
 import { FileService } from './file.service';
+import { CsvFileValidator } from './validators/csv-file.validator';
 
 @Controller('file')
 export class FileController {

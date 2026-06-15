@@ -1,10 +1,13 @@
 import {
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsPositive,
   IsString,
 } from 'class-validator';
+
+import { Language } from 'src/entities';
 
 export class MultiSearchQueryDto {
   @IsString()
@@ -15,4 +18,8 @@ export class MultiSearchQueryDto {
   @IsInt()
   @IsPositive()
   page?: number;
+
+  @IsEnum(Language)
+  @IsOptional()
+  language?: Language;
 }

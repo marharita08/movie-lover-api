@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import { User } from 'src/entities';
 import { FileService } from 'src/modules/file/file.service';
 
@@ -13,12 +15,15 @@ export class UserService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly fileService: FileService,
+    private readonly i18n: I18nService,
   ) {}
 
   async getById(id: string): Promise<UserDto> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(
+        this.i18n.t(TranslationKeys.ERROR_USER_NOT_FOUND),
+      );
     }
     return this.excludePrivateFields(user);
   }
@@ -34,7 +39,9 @@ export class UserService {
   async getByEmailOrThrow(email: string): Promise<User> {
     const user = await this.getByEmail(email);
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(
+        this.i18n.t(TranslationKeys.ERROR_USER_NOT_FOUND),
+      );
     }
     return user;
   }
@@ -53,7 +60,9 @@ export class UserService {
   async update(id: string, updateUserDto: UpdateUserDto): Promise<UserDto> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(
+        this.i18n.t(TranslationKeys.ERROR_USER_NOT_FOUND),
+      );
     }
     Object.assign(user, updateUserDto);
     await user.save();
@@ -63,7 +72,9 @@ export class UserService {
   async delete(id: string): Promise<void> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(
+        this.i18n.t(TranslationKeys.ERROR_USER_NOT_FOUND),
+      );
     }
     await this.fileService.deleteByUserId(id);
     await this.userRepository.remove(user);

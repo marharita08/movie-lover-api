@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import MockAdapter from 'axios-mock-adapter';
+import { I18nService } from 'nestjs-i18n';
 
 import { MediaType } from 'src/entities';
 
@@ -50,6 +51,12 @@ describe('TmdbService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        {
+          provide: I18nService,
+          useValue: {
+            t: jest.fn((key: string) => key),
+          },
+        },
         TmdbService,
         { provide: ConfigService, useFactory: mockConfigService },
         { provide: CACHE_MANAGER, useFactory: mockCacheManager },
@@ -76,6 +83,12 @@ describe('TmdbService', () => {
     it('should throw if TMDB_TOKEN or TMDB_URL is missing', async () => {
       const module = Test.createTestingModule({
         providers: [
+          {
+            provide: I18nService,
+            useValue: {
+              t: jest.fn((key: string) => key),
+            },
+          },
           TmdbService,
           {
             provide: ConfigService,
@@ -201,7 +214,10 @@ describe('TmdbService', () => {
       expect(tmdbResponseMapperService.mapMovieDetails).toHaveBeenCalledWith(
         rawData,
       );
-      expect(cacheManager.set).toHaveBeenCalledWith('movie:1', mappedData);
+      expect(cacheManager.set).toHaveBeenCalledWith(
+        'movie:1:en-US',
+        mappedData,
+      );
       expect(result).toBe(mappedData);
     });
 
@@ -212,7 +228,7 @@ describe('TmdbService', () => {
 
       const result = await service.movieDetails(1);
 
-      expect(cacheManager.get).toHaveBeenCalledWith('movie:1');
+      expect(cacheManager.get).toHaveBeenCalledWith('movie:1:en-US');
       expect(axiosMock.history.get.length).toBe(0);
       expect(result).toBe(cachedData);
     });
@@ -267,7 +283,7 @@ describe('TmdbService', () => {
       const result = await service.findMediaByImdbId('tt1234567');
 
       expect(tmdbResponseMapperService.mapMovie).toHaveBeenCalledWith(rawMovie);
-      expect(cacheManager.set).toHaveBeenCalledWith('media:tt1234567', {
+      expect(cacheManager.set).toHaveBeenCalledWith('media:tt1234567:en-US', {
         type: MediaType.MOVIE,
         data: mappedMovie,
       });
@@ -284,7 +300,7 @@ describe('TmdbService', () => {
 
       const result = await service.findMediaByImdbId('tt1234567');
 
-      expect(cacheManager.get).toHaveBeenCalledWith('media:tt1234567');
+      expect(cacheManager.get).toHaveBeenCalledWith('media:tt1234567:en-US');
       expect(axiosMock.history.get.length).toBe(0);
       expect(result).toBe(cachedData);
     });
@@ -307,7 +323,7 @@ describe('TmdbService', () => {
       expect(tmdbResponseMapperService.mapTvShow).toHaveBeenCalledWith(
         rawTvShow,
       );
-      expect(cacheManager.set).toHaveBeenCalledWith('media:tt1234567', {
+      expect(cacheManager.set).toHaveBeenCalledWith('media:tt1234567:en-US', {
         type: MediaType.TV,
         data: mappedTvShow,
       });
@@ -361,7 +377,7 @@ describe('TmdbService', () => {
       expect(tmdbResponseMapperService.mapTvShowDetails).toHaveBeenCalledWith(
         rawData,
       );
-      expect(cacheManager.set).toHaveBeenCalledWith('tv:1', mappedData);
+      expect(cacheManager.set).toHaveBeenCalledWith('tv:1:en-US', mappedData);
       expect(result).toBe(mappedData);
     });
 
@@ -372,7 +388,7 @@ describe('TmdbService', () => {
 
       const result = await service.getTVShowDetails(1);
 
-      expect(cacheManager.get).toHaveBeenCalledWith('tv:1');
+      expect(cacheManager.get).toHaveBeenCalledWith('tv:1:en-US');
       expect(axiosMock.history.get.length).toBe(0);
       expect(result).toBe(cachedData);
     });
@@ -416,7 +432,7 @@ describe('TmdbService', () => {
         rawCredits,
       );
       expect(cacheManager.set).toHaveBeenCalledWith(
-        'movie-credits:1',
+        'movie-credits:1:en-US',
         mappedCredits,
       );
       expect(result).toBe(mappedCredits);
@@ -429,7 +445,7 @@ describe('TmdbService', () => {
 
       const result = await service.getMovieCredits(1);
 
-      expect(cacheManager.get).toHaveBeenCalledWith('movie-credits:1');
+      expect(cacheManager.get).toHaveBeenCalledWith('movie-credits:1:en-US');
       expect(axiosMock.history.get.length).toBe(0);
       expect(result).toBe(cachedData);
     });
@@ -465,7 +481,7 @@ describe('TmdbService', () => {
       const result = await service.getTVShowCredits(1);
 
       expect(cacheManager.set).toHaveBeenCalledWith(
-        'tv-credits:1',
+        'tv-credits:1:en-US',
         mappedCredits,
       );
       expect(result).toBe(mappedCredits);
@@ -478,7 +494,7 @@ describe('TmdbService', () => {
 
       const result = await service.getTVShowCredits(1);
 
-      expect(cacheManager.get).toHaveBeenCalledWith('tv-credits:1');
+      expect(cacheManager.get).toHaveBeenCalledWith('tv-credits:1:en-US');
       expect(axiosMock.history.get.length).toBe(0);
       expect(result).toBe(cachedData);
     });
@@ -518,7 +534,10 @@ describe('TmdbService', () => {
       expect(tmdbResponseMapperService.mapPerson).toHaveBeenCalledWith(
         rawPerson,
       );
-      expect(cacheManager.set).toHaveBeenCalledWith('person:1', mappedPerson);
+      expect(cacheManager.set).toHaveBeenCalledWith(
+        'person:1:en-US',
+        mappedPerson,
+      );
       expect(result).toBe(mappedPerson);
     });
 
@@ -529,7 +548,7 @@ describe('TmdbService', () => {
 
       const result = await service.getPerson(1);
 
-      expect(cacheManager.get).toHaveBeenCalledWith('person:1');
+      expect(cacheManager.get).toHaveBeenCalledWith('person:1:en-US');
       expect(axiosMock.history.get.length).toBe(0);
       expect(result).toBe(cachedData);
     });
@@ -762,6 +781,7 @@ describe('TmdbService', () => {
           query: 'test search',
           page: 2,
           include_adult: false,
+          language: 'en-US',
         });
         return [200, rawData];
       });

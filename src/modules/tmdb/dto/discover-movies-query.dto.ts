@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsPositive, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsPositive,
+  IsString,
+} from 'class-validator';
+
+import { Language } from 'src/entities';
 
 export class DiscoverMoviesQueryDto {
   @IsOptional()
@@ -16,4 +24,8 @@ export class DiscoverMoviesQueryDto {
   @IsOptional()
   @IsString()
   sortBy: string;
+
+  @IsEnum(Language)
+  @IsOptional()
+  language?: Language;
 }

@@ -1,8 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import { Otp, OtpPurpose } from 'src/entities';
 
 const RESEND_COOLDOWN_MS = 60_000;
@@ -12,6 +14,7 @@ export class OtpService {
   constructor(
     @InjectRepository(Otp)
     private readonly otpRepository: Repository<Otp>,
+    private readonly i18n: I18nService,
   ) {}
 
   generateCode(): number {
@@ -28,7 +31,9 @@ export class OtpService {
       if (timeSinceLastOtp < RESEND_COOLDOWN_MS) {
         const timeUntilResend = RESEND_COOLDOWN_MS - timeSinceLastOtp;
         throw new BadRequestException(
-          `Please wait ${Math.ceil(timeUntilResend / 1000)} seconds before resending OTP`,
+          this.i18n.t(TranslationKeys.ERROR_OTP_RESEND_WAIT, {
+            args: { seconds: Math.ceil(timeUntilResend / 1000) },
+          }),
         );
       }
       await this.otpRepository.remove(lastOtp);
@@ -50,7 +55,9 @@ export class OtpService {
       where: { email, code, purpose },
     });
     if (!otp || otp.expiresAt < new Date()) {
-      throw new BadRequestException('Invalid or expired OTP');
+      throw new BadRequestException(
+        this.i18n.t(TranslationKeys.ERROR_OTP_INVALID_OR_EXPIRED),
+      );
     }
     await this.otpRepository.remove(otp);
   }
