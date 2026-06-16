@@ -4,12 +4,15 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
+import { I18nService } from 'nestjs-i18n';
 import * as os from 'os';
 import * as path from 'path';
 
+import { TranslationKeys } from 'src/const/translations/keys';
 import { ChatMessage, List, MediaType, MessageAuthor } from 'src/entities';
 
 import { StorageService } from '../storage/storage.service';
@@ -36,6 +39,7 @@ export class AiService {
   constructor(
     private configService: ConfigService,
     private storageService: StorageService,
+    private readonly i18n: I18nService,
   ) {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
@@ -82,19 +86,28 @@ export class AiService {
         `Sending request to Gemini API with ${uploadedFiles.length} CSV files`,
       );
 
-      const result = await this.model.generateContent({
-        contents: contentsWithFiles,
-        systemInstruction: systemPrompt,
-      });
+      let fullText: string;
+      try {
+        const result = await this.model.generateContent({
+          contents: contentsWithFiles,
+          systemInstruction: systemPrompt,
+        });
 
-      const response = await result.response;
-      const fullText = response.text();
+        const response = await result.response;
+        fullText = response.text();
 
-      this.logger.debug(`Received response from Gemini API`);
+        this.logger.debug(`Received response from Gemini API`);
+      } catch (error) {
+        this.logger.error('Error generating content with Gemini API', error);
+        throw new ServiceUnavailableException(
+          this.i18n.t(TranslationKeys.ERROR_AI_SERVICE_UNAVAILABLE),
+        );
+      }
 
-      return this.parseResponse(fullText as string);
+      return this.parseResponse(fullText);
     } catch (error) {
       this.logger.error('Error getting recommendations from Gemini', error);
+
       throw error;
     } finally {
       await this.cleanupGeminiFiles(uploadedFiles);
@@ -104,9 +117,18 @@ export class AiService {
   private async uploadListFiles(userLists: List[]): Promise<UploadedFile[]> {
     const uploadPromises = userLists.map(async (list) => {
       try {
-        const csvContent = await this.storageService.downloadFile(
-          list.file.key,
-        );
+        let csvContent: string;
+        try {
+          csvContent = await this.storageService.downloadFile(list.file.key);
+        } catch (error) {
+          this.logger.error(
+            `Failed to download file for list ${list.name}:`,
+            error,
+          );
+          throw new InternalServerErrorException(
+            this.i18n.t(TranslationKeys.ERROR_LIST_FILE_DOWNLOAD_FAILED),
+          );
+        }
 
         const tempFileName = `temp-${list.id}-${Date.now()}.csv`;
         const tempDir = os.tmpdir();
@@ -116,19 +138,36 @@ export class AiService {
 
         await fs.writeFile(tempFilePath, csvContent, 'utf-8');
 
-        const uploadResponse = await this.fileManager.uploadFile(tempFilePath, {
-          mimeType: 'text/csv',
-          displayName: list.name,
-        });
+        let uploadResponse;
+        try {
+          uploadResponse = await this.fileManager.uploadFile(tempFilePath, {
+            mimeType: 'text/csv',
+            displayName: list.name,
+          });
+        } catch (error) {
+          this.logger.error(
+            `Failed to upload file for list ${list.name}:`,
+            error,
+          );
+          throw new InternalServerErrorException(
+            this.i18n.t(TranslationKeys.ERROR_LIST_FILE_UPLOAD_FAILED),
+          );
+        }
 
-        let file = await this.fileManager.getFile(uploadResponse.file.name);
+        let file = await this.fileManager.getFile(
+          uploadResponse.file.name as string,
+        );
         while (file.state === FileState.PROCESSING) {
           await new Promise((resolve) => setTimeout(resolve, 1000));
-          file = await this.fileManager.getFile(uploadResponse.file.name);
+          file = await this.fileManager.getFile(
+            uploadResponse.file.name as string,
+          );
         }
 
         if (file.state === FileState.FAILED) {
-          throw new Error(`File processing failed: ${list.name}`);
+          throw new InternalServerErrorException(
+            this.i18n.t(TranslationKeys.ERROR_LIST_FILE_UPLOAD_FAILED),
+          );
         }
 
         await fs.unlink(tempFilePath).catch((err) => {
@@ -143,7 +182,7 @@ export class AiService {
         };
       } catch (error) {
         this.logger.error(
-          `Failed to upload file for list ${list.name}:`,
+          `Failed to process file for list ${list.name}:`,
           error,
         );
         throw error;
@@ -179,7 +218,7 @@ export class AiService {
     const lastIndex = conversationHistory.length - 1;
     const lastMessage = conversationHistory[lastIndex];
 
-    if (lastMessage.role === 'user') {
+    if (lastMessage.role === MessageAuthor.USER.toString()) {
       return [
         ...conversationHistory.slice(0, lastIndex),
         {
@@ -212,17 +251,14 @@ export class AiService {
         message.mediaItems.length > 0
       ) {
         const recommendationsList = message.mediaItems
-          .map(
-            (item) =>
-              `- ${item.title} (${item.type === MediaType.MOVIE ? 'movie' : 'TV show'})`,
-          )
+          .map((item) => `- ${item.title} (${item.type})`)
           .join('\n');
 
         messageText += `\n\nRecommended:\n${recommendationsList}`;
       }
 
       return {
-        role: message.author === MessageAuthor.USER ? 'user' : 'model',
+        role: message.author,
         parts: [{ text: messageText }],
       };
     });
@@ -275,14 +311,12 @@ export class AiService {
       const recommendations = JSON.parse(cleanJson);
 
       if (!Array.isArray(recommendations)) {
-        throw new InternalServerErrorException(
-          'Recommendations is not an array',
-        );
+        throw new Error('Recommendations is not an array');
       }
 
       const validatedRecommendations = recommendations.map((rec, index) => {
         if (!rec.title || !rec.type) {
-          throw new InternalServerErrorException(
+          throw new Error(
             `Invalid recommendation at index ${index}: missing required fields`,
           );
         }
@@ -308,7 +342,7 @@ export class AiService {
     } catch (error) {
       this.logger.error('Error parsing AI response', error);
       throw new InternalServerErrorException(
-        'Failed to parse AI response. Please try again.',
+        this.i18n.t(TranslationKeys.ERROR_AI_RESPONSE_PARSE_FAILED),
       );
     }
   }
@@ -318,7 +352,7 @@ export class AiService {
 
     if (!jsonMatch) {
       throw new InternalServerErrorException(
-        'Could not find valid JSON in response',
+        this.i18n.t(TranslationKeys.ERROR_AI_RESPONSE_PARSE_FAILED),
       );
     }
 
@@ -326,7 +360,9 @@ export class AiService {
     const textResponse = fullText.substring(0, jsonMatch.index).trim();
 
     return {
-      text: textResponse || 'Here are my recommendations:',
+      text:
+        textResponse ||
+        this.i18n.t(TranslationKeys.AI_RECOMMENDATIONS_DEFAULT_RESPONSE),
       recommendations: recommendations.map((rec) => ({
         title: rec.title,
         year: rec.year || null,

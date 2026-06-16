@@ -47,8 +47,17 @@ export class UserService {
   }
 
   excludePrivateFields(user: User): UserDto {
-    const { passwordHash: _, ...userData } = user;
-    return userData;
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      isEmailVerified: user.isEmailVerified,
+      lastLoginAt: user.lastLoginAt,
+      lastActiveAt: user.lastActiveAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      language: user.language,
+    };
   }
 
   async create(createUserDto: CreateUserDto): Promise<UserDto> {

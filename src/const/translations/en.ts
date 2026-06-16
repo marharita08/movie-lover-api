@@ -55,4 +55,14 @@ What would you like to watch today?`,
   [TranslationKeys.ERROR_PERSON_FETCH_FAILED]: 'Failed to get person',
   [TranslationKeys.ERROR_SEARCH_FAILED]: 'Failed to search',
   [TranslationKeys.ERROR_USER_NOT_FOUND]: 'User not found',
+  [TranslationKeys.ERROR_AI_SERVICE_UNAVAILABLE]:
+    'AI service is currently unavailable. Please try again later.',
+  [TranslationKeys.ERROR_LIST_FILE_DOWNLOAD_FAILED]:
+    'Failed to download list file. Please try again.',
+  [TranslationKeys.ERROR_LIST_FILE_UPLOAD_FAILED]:
+    'Failed to process list file. Please try again.',
+  [TranslationKeys.ERROR_AI_RESPONSE_PARSE_FAILED]:
+    'Failed to parse recommendations. Please try again.',
+  [TranslationKeys.AI_RECOMMENDATIONS_DEFAULT_RESPONSE]:
+    'Here are my recommendations:',
 };

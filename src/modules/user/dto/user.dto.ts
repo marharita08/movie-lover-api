@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsDate,
   IsEmail,
   IsEnum,
@@ -22,6 +23,10 @@ export class UserDto {
   @IsNotEmpty()
   @IsEmail()
   email: string;
+
+  @IsBoolean()
+  @IsNotEmpty()
+  isEmailVerified: boolean;
 
   @IsDate()
   @IsNotEmpty()

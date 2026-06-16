@@ -45,11 +45,6 @@ export class AccessTokenStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException('Session expired or not found');
     }
 
-    const { user, ...rest } = session;
-
-    return {
-      session: rest,
-      ...this.userService.excludePrivateFields(user),
-    };
+    return this.userService.excludePrivateFields(session.user);
   }
 }
