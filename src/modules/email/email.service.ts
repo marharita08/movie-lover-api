@@ -9,9 +9,9 @@ import {
   TransactionalEmailsApi,
   TransactionalEmailsApiApiKeys,
 } from '@sendinblue/client';
-import { I18nService } from 'nestjs-i18n';
 
 import { TranslationKeys } from 'src/const/translations/keys';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 @Injectable()
 export class EmailService {
@@ -22,7 +22,7 @@ export class EmailService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly i18n: I18nService,
+    private readonly i18n: TranslationService,
   ) {
     const apiKey = this.configService.get<string>('BREVO_API_KEY');
     if (!apiKey) {

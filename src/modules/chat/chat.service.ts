@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
 import { TranslationKeys } from 'src/const/translations/keys';
@@ -12,6 +11,7 @@ import {
   MessageAuthor,
 } from 'src/entities';
 import { PaginatedResponseDto } from 'src/modules/tmdb/dto';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 import { AiService } from '../ai/ai.service';
 import { ListService } from '../list/list.service';
@@ -30,7 +30,7 @@ export class ChatService {
     @InjectRepository(ChatMessage)
     private readonly chatMessageRepository: Repository<ChatMessage>,
     private readonly tmdbService: TmdbService,
-    private readonly i18n: I18nService,
+    private readonly i18n: TranslationService,
   ) {}
 
   async processUserMessage(user: UserDto, message: string) {

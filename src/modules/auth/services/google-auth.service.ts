@@ -1,9 +1,9 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
-import { I18nService } from 'nestjs-i18n';
 
 import { TranslationKeys } from 'src/const/translations/keys';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 @Injectable()
 export class GoogleAuthService {
@@ -13,7 +13,7 @@ export class GoogleAuthService {
 
   constructor(
     private configService: ConfigService,
-    private i18n: I18nService,
+    private i18n: TranslationService,
   ) {
     this.clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
     this.client = new OAuth2Client(

@@ -3,7 +3,6 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { I18nService } from 'nestjs-i18n';
 
 import { TranslationKeys } from 'src/const/translations/keys';
 import { Language, OtpPurpose } from 'src/entities';
@@ -11,6 +10,7 @@ import { EmailService } from 'src/modules/email/email.service';
 import { HashService } from 'src/modules/hash/hash.service';
 import { OtpService } from 'src/modules/otp/otp.service';
 import { ResetPasswordTokenService } from 'src/modules/reset-password-token/reset-password-token.service';
+import { TranslationService } from 'src/modules/translation/translation.service';
 import { UserDto } from 'src/modules/user/dto';
 import { UserService } from 'src/modules/user/user.service';
 import { generateSessionId } from 'src/utils';
@@ -44,7 +44,7 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly resetPasswordTokenService: ResetPasswordTokenService,
     private readonly googleAuthService: GoogleAuthService,
-    private readonly i18n: I18nService,
+    private readonly i18n: TranslationService,
   ) {}
 
   async signUp(signUpDto: SignUpDto) {
@@ -169,11 +169,7 @@ export class AuthService {
     });
     const response = this.i18n.t(TranslationKeys.OTP_SENT_RESPONSE);
 
-    await this.emailService.sendEmail(
-      email,
-      `Movie Lover - ${subject}`,
-      body as string,
-    );
+    await this.emailService.sendEmail(email, `Movie Lover - ${subject}`, body);
 
     return { message: response };
   }
@@ -199,11 +195,7 @@ export class AuthService {
     });
     const response = this.i18n.t(TranslationKeys.PASSWORD_RESET_EMAIL_SENT);
 
-    await this.emailService.sendEmail(
-      email,
-      `Movie Lover - ${subject}`,
-      body as string,
-    );
+    await this.emailService.sendEmail(email, `Movie Lover - ${subject}`, body);
 
     return { message: response };
   }

@@ -1,11 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
 import { TranslationKeys } from 'src/const/translations/keys';
 import { File } from 'src/entities';
 import { StorageService } from 'src/modules/storage/storage.service';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 @Injectable()
 export class FileService {
@@ -15,7 +15,7 @@ export class FileService {
     @InjectRepository(File)
     private readonly fileRepository: Repository<File>,
     private readonly storageService: StorageService,
-    private readonly i18n: I18nService,
+    private readonly i18n: TranslationService,
   ) {}
 
   async upload(file: Express.Multer.File, userId: string): Promise<File> {

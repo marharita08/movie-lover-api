@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { I18nService } from 'nestjs-i18n';
 import { ILike, Repository } from 'typeorm';
 
 import { TranslationKeys } from 'src/const/translations/keys';
@@ -22,6 +21,8 @@ import {
 import { CsvParserService } from 'src/modules/csv-parser/csv-parser.service';
 import { FileService } from 'src/modules/file/file.service';
 import { ListMediaItemService } from 'src/modules/list-media-item/list-media-item.service';
+import { TranslationService } from 'src/modules/translation/translation.service';
+import { getErrorMessage } from 'src/utils';
 
 import { UserDto } from '../user/dto';
 
@@ -48,7 +49,7 @@ export class ListService {
     private readonly fileService: FileService,
     private readonly csvParserService: CsvParserService,
     private readonly listMediaItemService: ListMediaItemService,
-    private readonly i18n: I18nService,
+    private readonly i18n: TranslationService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -220,7 +221,7 @@ export class ListService {
 
       await this.listRepository.update(listId, {
         status: ListStatus.FAILED,
-        errorMessage: error.message,
+        errorMessage: getErrorMessage(error),
       });
     }
   }

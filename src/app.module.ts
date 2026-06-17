@@ -13,11 +13,12 @@ import { AccessTokenGuard } from './modules/auth/guards';
 import { ChatModule } from './modules/chat/chat.module';
 import { CsvParserModule } from './modules/csv-parser/csv-parser.module';
 import { FileModule } from './modules/file/file.module';
-import { TsLoader } from './modules/i18n/i18n.loader';
-import { UserLanguageResolver } from './modules/i18n/i18n.resolver';
 import { ListModule } from './modules/list/list.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TmdbModule } from './modules/tmdb/tmdb.module';
+import { TsLoader } from './modules/translation/i18n.loader';
+import { UserLanguageResolver } from './modules/translation/i18n.resolver';
+import { TranslationModule } from './modules/translation/translation.module';
 import { TypeormModule } from './modules/typeorm/typeorm.module';
 
 @Module({
@@ -52,6 +53,7 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
     CsvParserModule,
     AiModule,
     ChatModule,
+    TranslationModule,
   ],
   providers: [
     {

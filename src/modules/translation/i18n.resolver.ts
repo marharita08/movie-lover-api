@@ -26,6 +26,9 @@ export class UserLanguageResolver implements I18nResolver {
       return request.body.language as Language;
     }
 
+    const header = request.headers?.['accept-language']?.split(',')[0]?.trim();
+    if (isSupported(header)) return header;
+
     return undefined;
   }
 }

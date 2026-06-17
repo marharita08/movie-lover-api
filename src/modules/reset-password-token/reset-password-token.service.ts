@@ -1,11 +1,11 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { I18nService } from 'nestjs-i18n';
 import { MoreThan, Repository } from 'typeorm';
 
 import { TranslationKeys } from 'src/const/translations/keys';
 import { ResetPasswordToken } from 'src/entities';
 import { HashService } from 'src/modules/hash/hash.service';
+import { TranslationService } from 'src/modules/translation/translation.service';
 import { generateResetPasswordToken } from 'src/utils';
 
 @Injectable()
@@ -14,7 +14,7 @@ export class ResetPasswordTokenService {
     @InjectRepository(ResetPasswordToken)
     private readonly resetPasswordTokenRepository: Repository<ResetPasswordToken>,
     private readonly hashService: HashService,
-    private readonly i18n: I18nService,
+    private readonly i18n: TranslationService,
   ) {}
 
   async create(userId: string) {

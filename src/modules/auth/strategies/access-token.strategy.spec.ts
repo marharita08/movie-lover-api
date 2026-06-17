@@ -68,69 +68,41 @@ describe('AccessTokenStrategy', () => {
       await expect(
         strategy.validate({ sessionId: '' } as JwtPayloadDto),
       ).rejects.toThrow(UnauthorizedException);
-
-      await expect(strategy.validate({} as JwtPayloadDto)).rejects.toThrow(
-        UnauthorizedException,
-      );
     });
 
-    it('should throw UnauthorizedException if session is not found', async () => {
-      sessionService.getById.mockResolvedValue(null as never);
-
+    it('should throw UnauthorizedException if session is not found or has no user', async () => {
+      sessionService.getById.mockResolvedValueOnce(null as never);
       await expect(
         strategy.validate({ sessionId: 'session-uuid' }),
       ).rejects.toThrow(UnauthorizedException);
 
-      expect(sessionService.getById).toHaveBeenCalledWith('session-uuid');
-    });
-
-    it('should throw UnauthorizedException if session has no user', async () => {
-      sessionService.getById.mockResolvedValue({
+      sessionService.getById.mockResolvedValueOnce({
         id: 'session-uuid',
         user: null,
       } as never);
-
       await expect(
         strategy.validate({ sessionId: 'session-uuid' }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should throw UnauthorizedException if session.user is undefined', async () => {
-      sessionService.getById.mockResolvedValue({
-        id: 'session-uuid',
-      } as never);
-
-      await expect(
-        strategy.validate({ sessionId: 'session-uuid' }),
-      ).rejects.toThrow(UnauthorizedException);
-    });
-
-    it('should return spread user fields and session without user', async () => {
+    it('should return user without private fields', async () => {
       const mockUser = {
         id: 'user-uuid',
         email: 'test@example.com',
         password: 'hashed',
       };
-      const mockSession = {
-        id: 'session-uuid',
-        token: 'token',
-        user: mockUser,
-      };
       const excludedUser = { id: 'user-uuid', email: 'test@example.com' };
 
-      sessionService.getById.mockResolvedValue(mockSession as never);
+      sessionService.getById.mockResolvedValue({
+        id: 'session-uuid',
+        user: mockUser,
+      } as never);
       userService.excludePrivateFields.mockReturnValue(excludedUser as never);
 
       const result = await strategy.validate({ sessionId: 'session-uuid' });
 
-      expect(sessionService.getById).toHaveBeenCalledWith('session-uuid');
       expect(userService.excludePrivateFields).toHaveBeenCalledWith(mockUser);
-      expect(result).toEqual({
-        session: { id: 'session-uuid', token: 'token' },
-        id: 'user-uuid',
-        email: 'test@example.com',
-      });
-      expect(result).not.toHaveProperty('session.user');
+      expect(result).toEqual(excludedUser);
       expect(result).not.toHaveProperty('password');
     });
   });

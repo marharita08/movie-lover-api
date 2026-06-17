@@ -56,4 +56,14 @@ export const uk: Record<TranslationKeys, string> = {
   [TranslationKeys.ERROR_PERSON_FETCH_FAILED]: 'Не вдалось отримати персону',
   [TranslationKeys.ERROR_SEARCH_FAILED]: 'Помилка пошуку',
   [TranslationKeys.ERROR_USER_NOT_FOUND]: 'Користувача не знайдено',
+  [TranslationKeys.ERROR_AI_SERVICE_UNAVAILABLE]:
+    'Служба штучного інтелекту тимчасово недоступна. Будь ласка, спробуйте пізніше.',
+  [TranslationKeys.ERROR_LIST_FILE_DOWNLOAD_FAILED]:
+    'Не вдалось завантажити файл списку. Будь ласка, спробуйте ще раз.',
+  [TranslationKeys.ERROR_LIST_FILE_UPLOAD_FAILED]:
+    'Не вдалось обробити файл списку. Будь ласка, спробуйте ще раз.',
+  [TranslationKeys.ERROR_AI_RESPONSE_PARSE_FAILED]:
+    'Не вдалось обробити рекомендації. Будь ласка, спробуйте ще раз.',
+  [TranslationKeys.AI_RECOMMENDATIONS_DEFAULT_RESPONSE]:
+    'Ось мої рекомендації:',
 };
