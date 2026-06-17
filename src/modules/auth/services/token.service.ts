@@ -2,10 +2,10 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { StringValue } from 'ms';
-import { I18nService } from 'nestjs-i18n';
 
 import { TranslationKeys } from 'src/const/translations/keys';
 import { Session } from 'src/entities';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 import { JwtPayloadDto } from '../dto/jwt-payload.dto';
 
@@ -19,7 +19,7 @@ export class TokenService {
     private jwtService: JwtService,
     private sessionService: SessionService,
     private configService: ConfigService,
-    private i18n: I18nService,
+    private i18n: TranslationService,
   ) {}
 
   private get invalidTokenMessage(): string {

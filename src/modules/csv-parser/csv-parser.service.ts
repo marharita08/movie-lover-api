@@ -5,10 +5,10 @@ import {
 } from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import { validate } from 'class-validator';
-import { I18nService } from 'nestjs-i18n';
 import * as Papa from 'papaparse';
 
 import { TranslationKeys } from 'src/const/translations/keys';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 export interface ParseOptions {
   header?: boolean;
@@ -20,7 +20,7 @@ export interface ParseOptions {
 
 @Injectable()
 export class CsvParserService {
-  constructor(private readonly i18n: I18nService) {}
+  constructor(private readonly i18n: TranslationService) {}
 
   async parse<T = any>(
     csvContent: string,

@@ -8,14 +8,15 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
-import { I18nService } from 'nestjs-i18n';
 import * as os from 'os';
 import * as path from 'path';
 
+import { messageAuthorToRole } from 'src/const/message-author-to-role';
 import { TranslationKeys } from 'src/const/translations/keys';
 import { ChatMessage, List, MediaType, MessageAuthor } from 'src/entities';
 
 import { StorageService } from '../storage/storage.service';
+import { TranslationService } from '../translation/translation.service';
 
 import { AIRecommendationResponseDto } from './dto/ai-recommendation-response.dto';
 import {
@@ -39,7 +40,7 @@ export class AiService {
   constructor(
     private configService: ConfigService,
     private storageService: StorageService,
-    private readonly i18n: I18nService,
+    private readonly i18n: TranslationService,
   ) {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
@@ -58,6 +59,7 @@ export class AiService {
         topP: 0.8,
         topK: 40,
       },
+      tools: [{ google_search: {} } as any],
     });
   }
 
@@ -196,6 +198,8 @@ export class AiService {
     listsCount: number,
     totalItems: number,
   ): string {
+    const today = new Date().toISOString().split('T')[0];
+
     const listsContext =
       listsCount > 0
         ? LISTS_CONTEXT_WITH_FILES.replace(
@@ -204,7 +208,10 @@ export class AiService {
           ).replace('{{TOTAL_ITEMS}}', totalItems.toString())
         : LISTS_CONTEXT_NO_FILES;
 
-    return RECOMMENDATIONS_PROMPT.replace('{{LISTS_CONTEXT}}', listsContext);
+    return RECOMMENDATIONS_PROMPT.replace(
+      '{{LISTS_CONTEXT}}',
+      listsContext,
+    ).replace('{{CURRENT_DATE}}', today);
   }
 
   private addFilesToHistory(
@@ -258,7 +265,7 @@ export class AiService {
       }
 
       return {
-        role: message.author,
+        role: messageAuthorToRole[message.author],
         parts: [{ text: messageText }],
       };
     });
@@ -351,6 +358,7 @@ export class AiService {
     const jsonMatch = fullText.match(/\[[\s\S]*\]/);
 
     if (!jsonMatch) {
+      this.logger.log('Full AI response:', fullText);
       throw new InternalServerErrorException(
         this.i18n.t(TranslationKeys.ERROR_AI_RESPONSE_PARSE_FAILED),
       );

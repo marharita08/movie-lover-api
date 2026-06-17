@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
 import { TranslationKeys } from 'src/const/translations/keys';
 import { Session } from 'src/entities';
+import { TranslationService } from 'src/modules/translation/translation.service';
 import { UserService } from 'src/modules/user/user.service';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class SessionService {
     @InjectRepository(Session)
     private sessionRepository: Repository<Session>,
     private userService: UserService,
-    private i18n: I18nService,
+    private i18n: TranslationService,
   ) {}
 
   async getOrCreate(

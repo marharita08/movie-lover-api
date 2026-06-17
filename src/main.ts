@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app.module';
+import { injectUserMiddleware } from './modules/auth/middleware/inject-user.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,6 +15,7 @@ async function bootstrap() {
     credentials: true,
   });
   app.use(cookieParser());
+  app.use(injectUserMiddleware);
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

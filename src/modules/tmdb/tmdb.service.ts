@@ -10,10 +10,10 @@ import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import rateLimit from 'axios-rate-limit';
 import type { Cache } from 'cache-manager';
-import { I18nService } from 'nestjs-i18n';
 
 import { TranslationKeys } from 'src/const/translations/keys';
 import { Language, MediaType } from 'src/entities';
+import { TranslationService } from 'src/modules/translation/translation.service';
 import { toSnakeCase } from 'src/utils';
 
 import {
@@ -53,7 +53,7 @@ export class TmdbService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly configService: ConfigService,
     private readonly tmdbResponseMapperService: TmdbResponseMapperService,
-    private readonly i18n: I18nService,
+    private readonly i18n: TranslationService,
   ) {
     const token = this.configService.get<string>('TMDB_TOKEN');
     const baseUrl = this.configService.get<string>('TMDB_URL');

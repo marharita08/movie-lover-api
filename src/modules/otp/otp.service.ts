@@ -1,11 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
 import { TranslationKeys } from 'src/const/translations/keys';
 import { Otp, OtpPurpose } from 'src/entities';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 const RESEND_COOLDOWN_MS = 60_000;
 
@@ -14,7 +14,7 @@ export class OtpService {
   constructor(
     @InjectRepository(Otp)
     private readonly otpRepository: Repository<Otp>,
-    private readonly i18n: I18nService,
+    private readonly i18n: TranslationService,
   ) {}
 
   generateCode(): number {

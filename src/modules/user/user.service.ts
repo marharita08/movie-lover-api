@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
 import { TranslationKeys } from 'src/const/translations/keys';
 import { User } from 'src/entities';
 import { FileService } from 'src/modules/file/file.service';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 import { CreateUserDto, UpdateUserDto, UserDto } from './dto';
 
@@ -15,7 +15,7 @@ export class UserService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly fileService: FileService,
-    private readonly i18n: I18nService,
+    private readonly i18n: TranslationService,
   ) {}
 
   async getById(id: string): Promise<UserDto> {
