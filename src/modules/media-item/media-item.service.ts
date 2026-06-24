@@ -400,8 +400,6 @@ export class MediaItemService {
       } else {
         await this.mediaItemRepository.save(mediaItem);
       }
-    } else {
-      this.logger.log(`Media item ${row.Const} already exists, reusing`);
     }
 
     return mediaItem;

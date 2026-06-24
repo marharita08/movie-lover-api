@@ -26,6 +26,16 @@ import { ChatMessage, List, MediaType, MessageAuthor } from 'src/entities';
 import { StorageService } from '../storage/storage.service';
 import { TranslationService } from '../translation/translation.service';
 
+import {
+  FILE_PROCESSING_POLL_INTERVAL_MS,
+  FILE_PROCESSING_TIMEOUT_MS,
+  GeminiModel,
+  GENERATE_TIMEOUT_MS,
+  RETRIES_PER_MODEL,
+  RETRY_BASE_DELAY_MS,
+  RETRY_MAX_DELAY_MS,
+  RETRYABLE_STATUSES,
+} from './const/const';
 import { AIRecommendationItemDto } from './dto/ai-recommendation-item.dto';
 import { AIRecommendationResponseDto } from './dto/ai-recommendation-response.dto';
 import {
@@ -40,15 +50,16 @@ interface UploadedFile {
   name: string;
 }
 
-const FILE_PROCESSING_TIMEOUT_MS = 60000;
-const FILE_PROCESSING_POLL_INTERVAL_MS = 1000;
+interface ModelConfig {
+  name: string;
+  instance: ReturnType<GoogleGenerativeAI['getGenerativeModel']>;
+}
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private genAI: GoogleGenerativeAI;
   private fileManager: GoogleAIFileManager;
-  private model;
+  private models: ModelConfig[];
 
   constructor(
     private storageService: StorageService,
@@ -56,18 +67,34 @@ export class AiService {
     @Inject(geminiConfig.KEY)
     private readonly config: ConfigType<typeof geminiConfig>,
   ) {
-    this.genAI = new GoogleGenerativeAI(config.apiKey);
+    const genAI = new GoogleGenerativeAI(config.apiKey);
     this.fileManager = new GoogleAIFileManager(config.apiKey);
 
-    this.model = this.genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+    const modelOptions = {
       generationConfig: {
         temperature: 0.7,
         topP: 0.8,
         topK: 40,
       },
       tools: [{ google_search: {} } as any],
-    });
+    };
+
+    this.models = [
+      {
+        name: GeminiModel.FLASH,
+        instance: genAI.getGenerativeModel({
+          model: GeminiModel.FLASH,
+          ...modelOptions,
+        }),
+      },
+      {
+        name: GeminiModel.FLASH_LITE,
+        instance: genAI.getGenerativeModel({
+          model: GeminiModel.FLASH_LITE,
+          ...modelOptions,
+        }),
+      },
+    ];
   }
 
   async getRecommendations(
@@ -85,22 +112,15 @@ export class AiService {
       );
 
       const conversationHistory = this.buildConversationHistory(chatHistory);
-
       const contentsWithFiles = this.addFilesToHistory(
         conversationHistory,
         uploadedFiles,
       );
 
-      this.logger.debug(
-        `Sending request to Gemini API with ${uploadedFiles.length} CSV files`,
-      );
-
-      const fullText = await this.generateContent(
+      const fullText = await this.generateContentWithFallback(
         contentsWithFiles,
         systemPrompt,
       );
-
-      this.logger.debug(`Received response from Gemini API`);
 
       return this.parseResponse(fullText);
     } finally {
@@ -108,28 +128,114 @@ export class AiService {
     }
   }
 
-  private async generateContent(
+  private async generateContentWithFallback(
     contents: Array<{ role: string; parts: Array<any> }>,
     systemInstruction: string,
   ): Promise<string> {
-    try {
-      const result = await this.model.generateContent({
-        contents,
-        systemInstruction,
-      });
+    let lastError: HttpException | undefined;
 
-      return result.response.text() as string;
-    } catch (error) {
-      throw this.mapGeminiError(error);
+    for (const model of this.models) {
+      this.logger.debug(`Trying model: ${model.name}`);
+
+      for (let attempt = 1; attempt <= RETRIES_PER_MODEL; attempt++) {
+        try {
+          const text = await this.generateWithTimeout(
+            model,
+            contents,
+            systemInstruction,
+          );
+          this.logger.debug(
+            `Success on model=${model.name} attempt=${attempt}`,
+          );
+          return text;
+        } catch (error) {
+          const mapped = this.mapGeminiError(error, model.name);
+          lastError = mapped;
+
+          const isRetryable = this.isRetryableError(error);
+          const isLastAttempt = attempt === RETRIES_PER_MODEL;
+
+          if (!isRetryable || isLastAttempt) {
+            this.logger.warn(
+              `Model ${model.name} exhausted (retryable=${isRetryable}, attempt=${attempt}).`,
+            );
+            break;
+          }
+
+          const delay = this.calcDelay(attempt);
+          this.logger.warn(
+            `Model ${model.name} attempt=${attempt} failed — retrying in ${delay}ms`,
+          );
+          await this.sleep(delay);
+        }
+      }
+    }
+
+    throw (
+      lastError ??
+      new InternalServerErrorException(
+        this.i18n.t(TranslationKeys.ERROR_AI_UNEXPECTED_ERROR),
+      )
+    );
+  }
+
+  private async generateWithTimeout(
+    model: ModelConfig,
+    contents: Array<{ role: string; parts: Array<any> }>,
+    systemInstruction: string,
+  ): Promise<string> {
+    let timeoutHandle: NodeJS.Timeout | undefined;
+
+    const generatePromise = model.instance.generateContent({
+      contents,
+      systemInstruction,
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(
+        () =>
+          reject(
+            new GoogleGenerativeAIFetchError(
+              `Request to ${model.name} timed out after ${GENERATE_TIMEOUT_MS}ms`,
+              HttpStatus.SERVICE_UNAVAILABLE,
+              'timeout',
+            ),
+          ),
+        GENERATE_TIMEOUT_MS,
+      );
+    });
+
+    try {
+      const result = await Promise.race([generatePromise, timeoutPromise]);
+      return result.response.text();
+    } finally {
+      clearTimeout(timeoutHandle);
     }
   }
 
-  private mapGeminiError(error: unknown): HttpException {
+  private calcDelay(attempt: number): number {
+    const base = RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+    const jitter = Math.random() * 500;
+    return Math.min(base + jitter, RETRY_MAX_DELAY_MS);
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private isRetryableError(error: unknown): boolean {
+    if (error instanceof GoogleGenerativeAIFetchError) {
+      return RETRYABLE_STATUSES.has(error.status as HttpStatus);
+    }
+    return false;
+  }
+
+  private mapGeminiError(error: unknown, modelName: string): HttpException {
     if (error instanceof GoogleGenerativeAIFetchError) {
       const status = error.status;
 
       if (status === HttpStatus.TOO_MANY_REQUESTS) {
-        this.logger.warn('Gemini API rate limit exceeded');
+        this.logger.warn(`[${modelName}] Rate limit exceeded`);
         return new HttpException(
           this.i18n.t(TranslationKeys.ERROR_AI_RATE_LIMIT),
           HttpStatus.TOO_MANY_REQUESTS,
@@ -139,12 +245,12 @@ export class AiService {
       if (status === HttpStatus.BAD_REQUEST) {
         const isSafetyBlock = error.message?.toLowerCase().includes('safety');
         if (isSafetyBlock) {
-          this.logger.warn('Gemini API request blocked by safety filters');
+          this.logger.warn(`[${modelName}] Request blocked by safety filters`);
           return new BadRequestException(
             this.i18n.t(TranslationKeys.ERROR_AI_SAFETY_BLOCK),
           );
         }
-        this.logger.error('Gemini API bad request', error.message);
+        this.logger.error(`[${modelName}] Bad request`, error.message);
         return new InternalServerErrorException(
           this.i18n.t(TranslationKeys.ERROR_AI_SERVICE_UNAVAILABLE),
         );
@@ -155,7 +261,7 @@ export class AiService {
         status === HttpStatus.FORBIDDEN
       ) {
         this.logger.error(
-          `Gemini API auth error (${status}) — check GEMINI_API_KEY configuration`,
+          `[${modelName}] Auth error (${status}) — check GEMINI_API_KEY`,
         );
         return new InternalServerErrorException(
           this.i18n.t(TranslationKeys.ERROR_AI_SERVICE_UNAVAILABLE),
@@ -166,14 +272,14 @@ export class AiService {
         status === HttpStatus.INTERNAL_SERVER_ERROR ||
         status === HttpStatus.SERVICE_UNAVAILABLE
       ) {
-        this.logger.error(`Gemini API server error (${status})`);
+        this.logger.error(`[${modelName}] Server error (${status})`);
         return new ServiceUnavailableException(
           this.i18n.t(TranslationKeys.ERROR_AI_SERVICE_UNAVAILABLE),
         );
       }
 
       this.logger.error(
-        `Unhandled Gemini API error (${status})`,
+        `[${modelName}] Unhandled error (${status})`,
         error.message,
       );
       return new InternalServerErrorException(
@@ -181,7 +287,7 @@ export class AiService {
       );
     }
 
-    this.logger.error('Unexpected error calling Gemini API', error);
+    this.logger.error(`[${modelName}] Unexpected error`, error);
     return new InternalServerErrorException(
       this.i18n.t(TranslationKeys.ERROR_AI_UNEXPECTED_ERROR),
     );
@@ -204,11 +310,9 @@ export class AiService {
         }
 
         const tempFileName = `temp-${list.id}-${Date.now()}.csv`;
-        const tempDir = os.tmpdir();
-        const tempFilePath = path.join(tempDir, tempFileName);
+        const tempFilePath = path.join(os.tmpdir(), tempFileName);
 
         this.logger.debug(`Writing temp file to: ${tempFilePath}`);
-
         await fs.writeFile(tempFilePath, csvContent, 'utf-8');
 
         let uploadResponse;
@@ -238,10 +342,7 @@ export class AiService {
 
         this.logger.debug(`Uploaded file to Gemini: ${list.name}`);
 
-        return {
-          uri: file.uri,
-          name: file.name,
-        };
+        return { uri: file.uri, name: file.name };
       } catch (error) {
         this.logger.error(
           `Failed to process file for list ${list.name}:`,
@@ -265,11 +366,7 @@ export class AiService {
           this.i18n.t(TranslationKeys.ERROR_LIST_FILE_UPLOAD_FAILED),
         );
       }
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, FILE_PROCESSING_POLL_INTERVAL_MS),
-      );
-
+      await this.sleep(FILE_PROCESSING_POLL_INTERVAL_MS);
       file = await this.fileManager.getFile(fileName);
     }
 
@@ -281,6 +378,23 @@ export class AiService {
     }
 
     return file;
+  }
+
+  private async cleanupGeminiFiles(
+    uploadedFiles: UploadedFile[],
+  ): Promise<void> {
+    if (uploadedFiles.length === 0) return;
+
+    await Promise.all(
+      uploadedFiles.map(async (file) => {
+        try {
+          await this.fileManager.deleteFile(file.name);
+          this.logger.debug(`Deleted Gemini file: ${file.name}`);
+        } catch (error) {
+          this.logger.warn(`Failed to delete Gemini file ${file.name}:`, error);
+        }
+      }),
+    );
   }
 
   private buildSystemPromptWithFiles(
@@ -360,23 +474,6 @@ export class AiService {
     });
   }
 
-  private async cleanupGeminiFiles(
-    uploadedFiles: UploadedFile[],
-  ): Promise<void> {
-    if (uploadedFiles.length === 0) return;
-
-    await Promise.all(
-      uploadedFiles.map(async (file) => {
-        try {
-          await this.fileManager.deleteFile(file.name);
-          this.logger.debug(`Deleted Gemini file: ${file.name}`);
-        } catch (error) {
-          this.logger.warn(`Failed to delete Gemini file ${file.name}:`, error);
-        }
-      }),
-    );
-  }
-
   private parseResponse(fullText: string): AIRecommendationResponseDto {
     const separatorIndex = fullText.indexOf(JSON_SEPARATOR);
 
@@ -384,10 +481,7 @@ export class AiService {
       this.logger.warn(
         'Response does not contain expected separator, returning text-only response',
       );
-      return {
-        text: fullText.trim(),
-        recommendations: [],
-      };
+      return { text: fullText.trim(), recommendations: [] };
     }
 
     const textResponse = fullText.slice(0, separatorIndex).trim();
