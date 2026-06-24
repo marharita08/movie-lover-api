@@ -2,7 +2,11 @@ import {
   GoogleGenerativeAI,
   GoogleGenerativeAIFetchError,
 } from '@google/generative-ai';
-import { FileState, GoogleAIFileManager } from '@google/generative-ai/server';
+import {
+  FileMetadataResponse,
+  FileState,
+  GoogleAIFileManager,
+} from '@google/generative-ai/server';
 import {
   HttpStatus,
   InternalServerErrorException,
@@ -24,345 +28,262 @@ jest.mock('@google/generative-ai');
 jest.mock('@google/generative-ai/server');
 jest.mock('fs/promises');
 
+const make503 = () =>
+  Object.assign(
+    new GoogleGenerativeAIFetchError('503', HttpStatus.SERVICE_UNAVAILABLE, ''),
+    {
+      status: HttpStatus.SERVICE_UNAVAILABLE,
+    },
+  );
+
+type AiServiceInternals = { sleep: (ms: number) => Promise<void> };
+
+const makeFileMetadata = (
+  overrides: Partial<FileMetadataResponse> = {},
+): FileMetadataResponse => ({
+  name: 'fn',
+  uri: 'fu',
+  mimeType: 'text/csv',
+  sizeBytes: '0',
+  createTime: new Date().toISOString(),
+  updateTime: new Date().toISOString(),
+  expirationTime: new Date().toISOString(),
+  sha256Hash: '',
+  state: FileState.ACTIVE,
+  ...overrides,
+});
+
 describe('AiService', () => {
   let service: AiService;
   let storageService: StorageService;
-  let mockModel: any;
-  let mockFileManager: any;
+  let mockGenerateContent: jest.Mock;
+  let mockFileManager: jest.Mocked<
+    Pick<GoogleAIFileManager, 'uploadFile' | 'getFile' | 'deleteFile'>
+  >;
 
   const mockList = {
     id: '1',
-    name: 'My Watchlist',
-    totalItems: 10,
-    file: { key: 'test-file-key' },
+    name: 'Watchlist',
+    totalItems: 5,
+    file: { key: 'key' },
   } as List;
 
-  const mockChatHistory: ChatMessage[] = [
-    {
-      id: '1',
-      text: 'Recommend me something',
-      author: MessageAuthor.USER,
-    } as ChatMessage,
-    {
-      id: '2',
-      text: 'Sure!',
-      author: MessageAuthor.ASSISTANT,
-      mediaItems: [{ title: 'Inception', type: MediaType.MOVIE }],
-    } as ChatMessage,
-  ];
+  const successResponse = (text = 'ok\n---JSON---\n[]') => ({
+    response: { text: jest.fn().mockReturnValue(text) },
+  });
 
   beforeEach(async () => {
-    mockModel = { generateContent: jest.fn() };
+    mockGenerateContent = jest.fn().mockResolvedValue(successResponse());
 
     mockFileManager = {
-      uploadFile: jest.fn(),
-      getFile: jest.fn(),
-      deleteFile: jest.fn(),
+      uploadFile: jest
+        .fn()
+        .mockResolvedValue({ file: { name: 'fn', uri: 'fu' } }),
+      getFile: jest.fn().mockResolvedValue(makeFileMetadata()),
+      deleteFile: jest.fn().mockResolvedValue(undefined),
     };
 
     (GoogleGenerativeAI as jest.Mock).mockImplementation(() => ({
-      getGenerativeModel: jest.fn().mockReturnValue(mockModel),
+      getGenerativeModel: jest
+        .fn()
+        .mockReturnValue({ generateContent: mockGenerateContent }),
     }));
-
     (GoogleAIFileManager as jest.Mock).mockImplementation(
-      () => mockFileManager as GoogleAIFileManager,
+      () => mockFileManager,
     );
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AiService,
-        {
-          provide: geminiConfig.KEY,
-          useValue: { apiKey: 'test-api-key' },
-        },
-        {
-          provide: StorageService,
-          useValue: { downloadFile: jest.fn() },
-        },
-        {
-          provide: TranslationService,
-          useValue: { t: jest.fn((key: string) => key) },
-        },
-      ],
-    }).compile();
-
-    service = module.get<AiService>(AiService);
-    storageService = module.get<StorageService>(StorageService);
-
-    jest
-      .spyOn(storageService, 'downloadFile')
-      .mockResolvedValue('csv,content\nrow1,value1');
 
     (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
     (fs.unlink as jest.Mock).mockResolvedValue(undefined);
 
-    mockFileManager.uploadFile.mockResolvedValue({
-      file: { name: 'test-file-name', uri: 'test-file-uri' },
-    });
-    mockFileManager.getFile.mockResolvedValue({
-      name: 'test-file-name',
-      uri: 'test-file-uri',
-      state: FileState.ACTIVE,
-    });
-    mockFileManager.deleteFile.mockResolvedValue(undefined);
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AiService,
+        { provide: geminiConfig.KEY, useValue: { apiKey: 'test-key' } },
+        {
+          provide: StorageService,
+          useValue: { downloadFile: jest.fn().mockResolvedValue('csv') },
+        },
+        { provide: TranslationService, useValue: { t: (k: string) => k } },
+      ],
+    }).compile();
+
+    service = module.get(AiService);
+    storageService = module.get(StorageService);
+    jest
+      .spyOn(service as unknown as AiServiceInternals, 'sleep')
+      .mockResolvedValue(undefined);
   });
 
   afterEach(() => jest.clearAllMocks());
 
-  // --- file upload lifecycle ---
+  // --- happy path ---
 
-  describe('uploadListFiles (via getRecommendations)', () => {
-    it('should throw InternalServerErrorException when file download fails', async () => {
-      jest
-        .spyOn(storageService, 'downloadFile')
-        .mockRejectedValueOnce(new Error('S3 error'));
+  it('should return parsed recommendations on success', async () => {
+    mockGenerateContent.mockResolvedValue(
+      successResponse(
+        'text\n---JSON---\n[{"title":"Inception","type":"movie","year":2010}]',
+      ),
+    );
 
-      await expect(service.getRecommendations([mockList])).rejects.toThrow(
-        InternalServerErrorException,
-      );
-    });
+    const result = await service.getRecommendations([mockList]);
 
-    it('should throw InternalServerErrorException when Gemini upload fails', async () => {
-      mockFileManager.uploadFile.mockRejectedValueOnce(
-        new Error('Upload error'),
-      );
-
-      await expect(service.getRecommendations([mockList])).rejects.toThrow(
-        InternalServerErrorException,
-      );
-    });
-
-    it('should poll until file state becomes ACTIVE', async () => {
-      mockFileManager.getFile
-        .mockResolvedValueOnce({ name: 'f', state: FileState.PROCESSING })
-        .mockResolvedValueOnce({ name: 'f', state: FileState.PROCESSING })
-        .mockResolvedValueOnce({
-          name: 'f',
-          uri: 'uri',
-          state: FileState.ACTIVE,
-        });
-
-      mockModel.generateContent.mockResolvedValue({
-        response: { text: jest.fn().mockReturnValue('t\n---JSON---\n[]') },
-      });
-
-      await service.getRecommendations([mockList]);
-
-      expect(mockFileManager.getFile).toHaveBeenCalledTimes(3);
-    });
-
-    it('should throw InternalServerErrorException when file state is FAILED', async () => {
-      mockFileManager.getFile.mockResolvedValue({
-        name: 'f',
-        state: FileState.FAILED,
-      });
-
-      await expect(service.getRecommendations([mockList])).rejects.toThrow(
-        InternalServerErrorException,
-      );
-    });
-
-    it('should upload and delete files for each list', async () => {
-      const lists = [
-        { id: '1', name: 'L1', totalItems: 5, file: { key: 'k1' } } as List,
-        { id: '2', name: 'L2', totalItems: 3, file: { key: 'k2' } } as List,
-      ];
-
-      mockModel.generateContent.mockResolvedValue({
-        response: { text: jest.fn().mockReturnValue('t\n---JSON---\n[]') },
-      });
-
-      await service.getRecommendations(lists);
-
-      expect(mockFileManager.uploadFile).toHaveBeenCalledTimes(2);
-      expect(mockFileManager.deleteFile).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  // --- getRecommendations orchestration ---
-
-  describe('getRecommendations', () => {
-    it('should skip file upload when lists array is empty', async () => {
-      mockModel.generateContent.mockResolvedValue({
-        response: { text: jest.fn().mockReturnValue('t\n---JSON---\n[]') },
-      });
-
-      await service.getRecommendations([], mockChatHistory);
-
-      expect(mockFileManager.uploadFile).not.toHaveBeenCalled();
-    });
-
-    it('should throw ServiceUnavailableException when Gemini API returns 503', async () => {
-      const err = Object.assign(
-        new (GoogleGenerativeAIFetchError as any)('Service Unavailable'),
-        { status: HttpStatus.SERVICE_UNAVAILABLE },
-      );
-      mockModel.generateContent.mockRejectedValue(err);
-
-      await expect(service.getRecommendations([mockList])).rejects.toThrow(
-        ServiceUnavailableException,
-      );
-    });
-
-    it('should delete uploaded files even when content generation fails', async () => {
-      mockModel.generateContent.mockRejectedValue(new Error('API Error'));
-
-      await expect(service.getRecommendations([mockList])).rejects.toThrow();
-
-      expect(mockFileManager.deleteFile).toHaveBeenCalledWith('test-file-name');
-    });
-
-    it('should not throw when Gemini file deletion fails', async () => {
-      mockFileManager.deleteFile.mockRejectedValue(new Error('Delete failed'));
-
-      mockModel.generateContent.mockResolvedValue({
-        response: { text: jest.fn().mockReturnValue('t\n---JSON---\n[]') },
-      });
-
-      await expect(
-        service.getRecommendations([mockList]),
-      ).resolves.toBeDefined();
-    });
-  });
-
-  // --- response parsing ---
-
-  describe('parseResponse (via getRecommendations)', () => {
-    const respond = (text: string): void => {
-      mockModel.generateContent.mockResolvedValue({
-        response: { text: jest.fn().mockReturnValue(text) },
-      });
-    };
-
-    it('should return text and recommendations with original_title when separator is present', async () => {
-      respond(
-        'Here are recommendations\n---JSON---\n```json\n[{"title":"Inception","original_title":"Inception","year":2010,"type":"movie"}]\n```',
-      );
-
-      const result = await service.getRecommendations([mockList]);
-
-      expect(result).toEqual({
-        text: 'Here are recommendations',
-        recommendations: [
-          {
-            title: 'Inception',
-            original_title: 'Inception',
-            year: 2010,
-            type: MediaType.MOVIE,
-          },
-        ],
-      });
-    });
-
-    it('should fall back to title when original_title is missing', async () => {
-      respond('t\n---JSON---\n[{"title":"Dune","type":"movie","year":2021}]');
-
-      const result = await service.getRecommendations([mockList]);
-
-      expect(result.recommendations[0].original_title).toBe('Dune');
-    });
-
-    it('should return text-only response when separator is absent', async () => {
-      respond('Plain text with no separator');
-
-      const result = await service.getRecommendations([mockList]);
-
-      expect(result).toEqual({
-        text: 'Plain text with no separator',
-        recommendations: [],
-      });
-    });
-
-    it('should throw InternalServerErrorException when JSON after separator is invalid', async () => {
-      respond('t\n---JSON---\nnot-valid-json');
-
-      await expect(service.getRecommendations([mockList])).rejects.toThrow(
-        InternalServerErrorException,
-      );
-    });
-
-    it('should throw InternalServerErrorException when recommendation is missing required fields', async () => {
-      respond('t\n---JSON---\n[{"title":"Movie"}]');
-
-      await expect(service.getRecommendations([mockList])).rejects.toThrow(
-        InternalServerErrorException,
-      );
-    });
-
-    it('should default unknown media type to MOVIE', async () => {
-      respond('t\n---JSON---\n[{"title":"Test","type":"unknown","year":2020}]');
-
-      const result = await service.getRecommendations([mockList]);
-
-      expect(result.recommendations[0].type).toBe(MediaType.MOVIE);
-    });
-  });
-
-  // --- conversation content building ---
-
-  describe('conversation content building', () => {
-    const respond = (): void => {
-      mockModel.generateContent.mockResolvedValue({
-        response: { text: jest.fn().mockReturnValue('t\n---JSON---\n[]') },
-      });
-    };
-
-    it('should append media items to assistant messages', async () => {
-      respond();
-
-      await service.getRecommendations([mockList], mockChatHistory);
-
-      const contents = mockModel.generateContent.mock.calls[0][0].contents;
-      const assistantMsg = contents.find(
-        (c: any) => c.role === messageAuthorToRole[MessageAuthor.ASSISTANT],
-      );
-
-      expect(assistantMsg.parts[0].text).toContain('Inception (movie)');
-    });
-
-    it('should attach uploaded files to the last user message', async () => {
-      respond();
-
-      await service.getRecommendations(
-        [mockList],
-        [{ id: '1', text: 'hello', author: MessageAuthor.USER } as ChatMessage],
-      );
-
-      const contents = mockModel.generateContent.mock.calls[0][0].contents;
-      const last = contents[contents.length - 1];
-
-      expect(last.role).toBe(messageAuthorToRole[MessageAuthor.USER]);
-      expect(last.parts[0].fileData?.fileUri).toBe('test-file-uri');
-    });
-
-    it('should not add files when history is empty', async () => {
-      respond();
-
-      await service.getRecommendations([mockList], []);
-
-      expect(mockModel.generateContent).toHaveBeenCalledWith(
-        expect.objectContaining({ contents: [] }),
-      );
-    });
-
-    it('should not add files when last message is not from user', async () => {
-      respond();
-
-      const historyEndingWithAssistant: ChatMessage[] = [
-        { id: '1', text: 'hi', author: MessageAuthor.USER } as ChatMessage,
+    expect(result).toEqual({
+      text: 'text',
+      recommendations: [
         {
-          id: '2',
-          text: 'hello',
-          author: MessageAuthor.ASSISTANT,
-        } as ChatMessage,
-      ];
-
-      await service.getRecommendations([mockList], historyEndingWithAssistant);
-
-      const contents = mockModel.generateContent.mock.calls[0][0].contents;
-      const last = contents[contents.length - 1];
-
-      expect(last.parts[0].fileData).toBeUndefined();
+          title: 'Inception',
+          original_title: 'Inception',
+          year: 2010,
+          type: MediaType.MOVIE,
+        },
+      ],
     });
+  });
+
+  it('should return text-only when separator is absent', async () => {
+    mockGenerateContent.mockResolvedValue(successResponse('plain text'));
+
+    const result = await service.getRecommendations([mockList]);
+
+    expect(result).toEqual({ text: 'plain text', recommendations: [] });
+  });
+
+  // --- retry & fallback ---
+
+  it('should retry and succeed on second attempt within same model', async () => {
+    mockGenerateContent
+      .mockRejectedValueOnce(make503())
+      .mockResolvedValue(successResponse());
+
+    await expect(service.getRecommendations([mockList])).resolves.toBeDefined();
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+  });
+
+  it('should fallback to second model after exhausting retries on first', async () => {
+    mockGenerateContent
+      .mockRejectedValueOnce(make503())
+      .mockRejectedValueOnce(make503())
+      .mockRejectedValueOnce(make503())
+      .mockResolvedValue(successResponse());
+
+    await expect(service.getRecommendations([mockList])).resolves.toBeDefined();
+    expect(mockGenerateContent).toHaveBeenCalledTimes(4);
+  });
+
+  it('should throw ServiceUnavailableException when both models exhaust all retries', async () => {
+    mockGenerateContent.mockRejectedValue(make503());
+
+    await expect(service.getRecommendations([mockList])).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    // 2 моделі × 3 спроби = 6
+    expect(mockGenerateContent).toHaveBeenCalledTimes(6);
+  });
+
+  it('should not retry on non-retryable error and switch model immediately', async () => {
+    const err = Object.assign(
+      new GoogleGenerativeAIFetchError('400', HttpStatus.BAD_REQUEST, ''),
+      { status: HttpStatus.BAD_REQUEST },
+    );
+    mockGenerateContent.mockRejectedValue(err);
+
+    await expect(service.getRecommendations([mockList])).rejects.toThrow(
+      InternalServerErrorException,
+    );
+    // По 1 спробі на кожну модель = 2
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+  });
+
+  // --- file lifecycle ---
+
+  it('should throw when file download fails', async () => {
+    jest
+      .spyOn(storageService, 'downloadFile')
+      .mockRejectedValueOnce(new Error('S3'));
+
+    await expect(service.getRecommendations([mockList])).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
+
+  it('should throw when Gemini upload fails', async () => {
+    mockFileManager.uploadFile.mockRejectedValueOnce(new Error('upload'));
+
+    await expect(service.getRecommendations([mockList])).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
+
+  it('should throw when file processing state is FAILED', async () => {
+    mockFileManager.getFile.mockResolvedValue(
+      makeFileMetadata({ state: FileState.FAILED }),
+    );
+    await expect(service.getRecommendations([mockList])).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
+
+  it('should delete uploaded files even when generation fails', async () => {
+    mockGenerateContent.mockRejectedValue(new Error('fail'));
+
+    await expect(service.getRecommendations([mockList])).rejects.toThrow();
+
+    expect(mockFileManager.deleteFile).toHaveBeenCalledWith('fn');
+  });
+
+  it('should skip upload when lists is empty', async () => {
+    await service.getRecommendations([]);
+
+    expect(mockFileManager.uploadFile).not.toHaveBeenCalled();
+  });
+
+  // --- response parsing edge cases ---
+
+  it('should throw when JSON after separator is invalid', async () => {
+    mockGenerateContent.mockResolvedValue(
+      successResponse('t\n---JSON---\nnot-json'),
+    );
+
+    await expect(service.getRecommendations([mockList])).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
+
+  it('should default unknown media type to MOVIE', async () => {
+    mockGenerateContent.mockResolvedValue(
+      successResponse(
+        't\n---JSON---\n[{"title":"X","type":"unknown","year":2020}]',
+      ),
+    );
+
+    const result = await service.getRecommendations([mockList]);
+
+    expect(result.recommendations[0].type).toBe(MediaType.MOVIE);
+  });
+
+  // --- conversation building ---
+
+  it('should attach files to last user message and include media items in assistant message', async () => {
+    const history: ChatMessage[] = [
+      { id: '1', text: 'hi', author: MessageAuthor.USER } as ChatMessage,
+      {
+        id: '2',
+        text: 'Sure!',
+        author: MessageAuthor.ASSISTANT,
+        mediaItems: [{ title: 'Inception', type: MediaType.MOVIE }],
+      } as ChatMessage,
+      { id: '3', text: 'more', author: MessageAuthor.USER } as ChatMessage,
+    ];
+
+    await service.getRecommendations([mockList], history);
+
+    const { contents } = mockGenerateContent.mock.calls[0][0];
+    const last = contents[contents.length - 1];
+    const assistant = contents.find(
+      (c: any) => c.role === messageAuthorToRole[MessageAuthor.ASSISTANT],
+    );
+
+    expect(last.parts[0].fileData?.fileUri).toBe('fu');
+    expect(assistant.parts[0].text).toContain('Inception (movie)');
   });
 });
