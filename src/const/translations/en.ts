@@ -63,6 +63,16 @@ What would you like to watch today?`,
     'Failed to process list file. Please try again.',
   [TranslationKeys.ERROR_AI_RESPONSE_PARSE_FAILED]:
     'Failed to parse recommendations. Please try again.',
-  [TranslationKeys.AI_RECOMMENDATIONS_DEFAULT_RESPONSE]:
-    'Here are my recommendations:',
+  [TranslationKeys.ERROR_AI_RATE_LIMIT]:
+    'Too many requests to the AI service. Please try again later.',
+  [TranslationKeys.ERROR_AI_SAFETY_BLOCK]:
+    'The request could not be processed due to safety restrictions. Please rephrase your message and try again.',
+  [TranslationKeys.ERROR_AI_UNEXPECTED_ERROR]:
+    'Unexpected error happend while getting response from AI.',
+  [TranslationKeys.ERROR_CSV_NO_FILE]: 'No file provided',
+  [TranslationKeys.ERROR_CSV_INVALID_EXTENSION]:
+    'Invalid file extension. Expected .csv but got {extension}',
+  [TranslationKeys.ERROR_CSV_INVALID_MIME_TYPE]:
+    'Invalid MIME type. Expected CSV but got {mimeType}',
+  [TranslationKeys.ERROR_CSV_FILE_EMPTY]: 'File is empty',
 };

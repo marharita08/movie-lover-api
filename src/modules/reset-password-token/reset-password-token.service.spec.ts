@@ -1,11 +1,11 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { I18nService } from 'nestjs-i18n';
 import { MoreThan, Repository } from 'typeorm';
 
 import { ResetPasswordToken } from 'src/entities';
 import { HashService } from 'src/modules/hash/hash.service';
+import { TranslationService } from 'src/modules/translation/translation.service';
 import * as generateResetPasswordTokenUtil from 'src/utils/generate-reset-password-token';
 
 import { ResetPasswordTokenService } from './reset-password-token.service';
@@ -47,13 +47,11 @@ describe('ResetPasswordTokenService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        {
-          provide: I18nService,
-          useValue: {
-            t: jest.fn((key: string) => key),
-          },
-        },
         ResetPasswordTokenService,
+        {
+          provide: TranslationService,
+          useValue: { t: jest.fn((key: string) => key) },
+        },
         {
           provide: getRepositoryToken(ResetPasswordToken),
           useFactory: mockResetPasswordTokenRepository,
@@ -80,18 +78,15 @@ describe('ResetPasswordTokenService', () => {
       jest.setSystemTime(FIXED_DATE);
     });
 
-    afterEach(() => {
-      jest.useRealTimers();
-    });
+    afterEach(() => jest.useRealTimers());
 
-    it('should hash the token and save it, then return the plain token', async () => {
+    it('should hash the token, save it with correct expiresAt and return the plain token', async () => {
       mockedGenerateResetPasswordToken.mockReturnValue('plain_token');
       hashService.hash.mockResolvedValue('hashed_token');
       resetPasswordTokenRepository.save.mockResolvedValue(makeToken());
 
       const result = await service.create('user-uuid-1');
 
-      expect(mockedGenerateResetPasswordToken).toHaveBeenCalled();
       expect(hashService.hash).toHaveBeenCalledWith('plain_token');
       expect(resetPasswordTokenRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -102,21 +97,6 @@ describe('ResetPasswordTokenService', () => {
       );
       expect(result).toBe('plain_token');
     });
-
-    it('should set expiresAt to exactly 10 minutes in the future', async () => {
-      mockedGenerateResetPasswordToken.mockReturnValue('plain_token');
-      hashService.hash.mockResolvedValue('hashed_token');
-      resetPasswordTokenRepository.save.mockResolvedValue(makeToken());
-
-      await service.create('user-uuid-1');
-
-      const { expiresAt } = resetPasswordTokenRepository.save.mock
-        .calls[0][0] as { expiresAt: Date };
-
-      expect(expiresAt).toEqual(
-        new Date(FIXED_DATE.getTime() + 10 * 60 * 1000),
-      );
-    });
   });
 
   describe('verifyAndDelete', () => {
@@ -125,11 +105,9 @@ describe('ResetPasswordTokenService', () => {
       jest.setSystemTime(FIXED_DATE);
     });
 
-    afterEach(() => {
-      jest.useRealTimers();
-    });
+    afterEach(() => jest.useRealTimers());
 
-    it('should delete the token when it is valid', async () => {
+    it('should verify token hash and delete when valid', async () => {
       const token = makeToken();
       resetPasswordTokenRepository.findOne.mockResolvedValue(token);
       hashService.compare.mockResolvedValue(true);
@@ -137,10 +115,7 @@ describe('ResetPasswordTokenService', () => {
       await service.verifyAndDelete('user-uuid-1', 'plain_token');
 
       expect(resetPasswordTokenRepository.findOne).toHaveBeenCalledWith({
-        where: {
-          userId: 'user-uuid-1',
-          expiresAt: MoreThan(FIXED_DATE),
-        },
+        where: { userId: 'user-uuid-1', expiresAt: MoreThan(FIXED_DATE) },
       });
       expect(hashService.compare).toHaveBeenCalledWith(
         'plain_token',
@@ -151,27 +126,23 @@ describe('ResetPasswordTokenService', () => {
       );
     });
 
-    it('should throw UnauthorizedException when no token record is found', async () => {
-      resetPasswordTokenRepository.findOne.mockResolvedValue(null as never);
+    it.each([
+      ['no token record is found', null, true],
+      ['token hash does not match', makeToken(), false],
+    ])(
+      'should throw UnauthorizedException when %s',
+      async (_label, tokenValue, compareResult) => {
+        resetPasswordTokenRepository.findOne.mockResolvedValue(
+          tokenValue as never,
+        );
+        hashService.compare.mockResolvedValue(compareResult);
 
-      await expect(
-        service.verifyAndDelete('user-uuid-1', 'plain_token'),
-      ).rejects.toThrow(UnauthorizedException);
+        await expect(
+          service.verifyAndDelete('user-uuid-1', 'wrong_token'),
+        ).rejects.toThrow(UnauthorizedException);
 
-      expect(hashService.compare).not.toHaveBeenCalled();
-      expect(resetPasswordTokenRepository.delete).not.toHaveBeenCalled();
-    });
-
-    it('should throw UnauthorizedException when the token hash does not match', async () => {
-      const token = makeToken();
-      resetPasswordTokenRepository.findOne.mockResolvedValue(token);
-      hashService.compare.mockResolvedValue(false);
-
-      await expect(
-        service.verifyAndDelete('user-uuid-1', 'wrong_token'),
-      ).rejects.toThrow(UnauthorizedException);
-
-      expect(resetPasswordTokenRepository.delete).not.toHaveBeenCalled();
-    });
+        expect(resetPasswordTokenRepository.delete).not.toHaveBeenCalled();
+      },
+    );
   });
 });

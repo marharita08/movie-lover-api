@@ -1,17 +1,22 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import {
+  GoogleGenerativeAI,
+  GoogleGenerativeAIFetchError,
+} from '@google/generative-ai';
 import { FileState, GoogleAIFileManager } from '@google/generative-ai/server';
 import {
+  HttpStatus,
   InternalServerErrorException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as fs from 'fs/promises';
-import { I18nService } from 'nestjs-i18n';
 
+import { geminiConfig } from 'src/config';
+import { messageAuthorToRole } from 'src/const/message-author-to-role';
 import { ChatMessage, List, MediaType, MessageAuthor } from 'src/entities';
 
 import { StorageService } from '../storage/storage.service';
+import { TranslationService } from '../translation/translation.service';
 
 import { AiService } from './ai.service';
 
@@ -21,13 +26,9 @@ jest.mock('fs/promises');
 
 describe('AiService', () => {
   let service: AiService;
-  let configService: ConfigService;
   let storageService: StorageService;
   let mockModel: any;
   let mockFileManager: any;
-  let mockI18n: I18nService;
-
-  const mockApiKey = 'test-api-key';
 
   const mockList = {
     id: '1',
@@ -59,42 +60,33 @@ describe('AiService', () => {
       deleteFile: jest.fn(),
     };
 
-    mockI18n = {
-      t: jest.fn((key: string) => key),
-    } as unknown as I18nService;
-
     (GoogleGenerativeAI as jest.Mock).mockImplementation(() => ({
       getGenerativeModel: jest.fn().mockReturnValue(mockModel),
     }));
 
-    (GoogleAIFileManager as jest.Mock).mockImplementation(() => {
-      return mockFileManager as GoogleAIFileManager;
-    });
+    (GoogleAIFileManager as jest.Mock).mockImplementation(
+      () => mockFileManager as GoogleAIFileManager,
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AiService,
         {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn((key: string) =>
-              key === 'GEMINI_API_KEY' ? mockApiKey : null,
-            ),
-          },
+          provide: geminiConfig.KEY,
+          useValue: { apiKey: 'test-api-key' },
         },
         {
           provide: StorageService,
           useValue: { downloadFile: jest.fn() },
         },
         {
-          provide: I18nService,
-          useValue: mockI18n,
+          provide: TranslationService,
+          useValue: { t: jest.fn((key: string) => key) },
         },
       ],
     }).compile();
 
     service = module.get<AiService>(AiService);
-    configService = module.get<ConfigService>(ConfigService);
     storageService = module.get<StorageService>(StorageService);
 
     jest
@@ -116,23 +108,6 @@ describe('AiService', () => {
   });
 
   afterEach(() => jest.clearAllMocks());
-
-  // --- constructor ---
-
-  describe('constructor', () => {
-    it('should throw InternalServerErrorException if GEMINI_API_KEY is missing', () => {
-      jest.spyOn(configService, 'get').mockReturnValue(undefined);
-
-      expect(
-        () => new AiService(configService, storageService, mockI18n),
-      ).toThrow(InternalServerErrorException);
-    });
-
-    it('should initialise SDK with the provided API key', () => {
-      expect(GoogleGenerativeAI).toHaveBeenCalledWith(mockApiKey);
-      expect(GoogleAIFileManager).toHaveBeenCalledWith(mockApiKey);
-    });
-  });
 
   // --- file upload lifecycle ---
 
@@ -218,9 +193,10 @@ describe('AiService', () => {
     });
 
     it('should throw ServiceUnavailableException when Gemini API returns 503', async () => {
-      const err = Object.assign(new Error('Service Unavailable'), {
-        status: 503,
-      });
+      const err = Object.assign(
+        new (GoogleGenerativeAIFetchError as any)('Service Unavailable'),
+        { status: HttpStatus.SERVICE_UNAVAILABLE },
+      );
       mockModel.generateContent.mockRejectedValue(err);
 
       await expect(service.getRecommendations([mockList])).rejects.toThrow(
@@ -258,9 +234,9 @@ describe('AiService', () => {
       });
     };
 
-    it('should return text and recommendations when separator is present', async () => {
+    it('should return text and recommendations with original_title when separator is present', async () => {
       respond(
-        'Here are recommendations\n---JSON---\n```json\n[{"title":"Inception","year":2010,"type":"movie"}]\n```',
+        'Here are recommendations\n---JSON---\n```json\n[{"title":"Inception","original_title":"Inception","year":2010,"type":"movie"}]\n```',
       );
 
       const result = await service.getRecommendations([mockList]);
@@ -268,23 +244,37 @@ describe('AiService', () => {
       expect(result).toEqual({
         text: 'Here are recommendations',
         recommendations: [
-          { title: 'Inception', year: 2010, type: MediaType.MOVIE },
+          {
+            title: 'Inception',
+            original_title: 'Inception',
+            year: 2010,
+            type: MediaType.MOVIE,
+          },
         ],
       });
     });
 
-    it('should use fallback parsing when separator is absent', async () => {
-      respond('Some text [{"title":"Inception","year":2010,"type":"movie"}]');
+    it('should fall back to title when original_title is missing', async () => {
+      respond('t\n---JSON---\n[{"title":"Dune","type":"movie","year":2021}]');
 
       const result = await service.getRecommendations([mockList]);
 
-      expect(result.recommendations).toEqual([
-        { title: 'Inception', year: 2010, type: MediaType.MOVIE },
-      ]);
+      expect(result.recommendations[0].original_title).toBe('Dune');
     });
 
-    it('should throw InternalServerErrorException when no JSON is found', async () => {
-      respond('Plain text with no JSON at all');
+    it('should return text-only response when separator is absent', async () => {
+      respond('Plain text with no separator');
+
+      const result = await service.getRecommendations([mockList]);
+
+      expect(result).toEqual({
+        text: 'Plain text with no separator',
+        recommendations: [],
+      });
+    });
+
+    it('should throw InternalServerErrorException when JSON after separator is invalid', async () => {
+      respond('t\n---JSON---\nnot-valid-json');
 
       await expect(service.getRecommendations([mockList])).rejects.toThrow(
         InternalServerErrorException,
@@ -306,14 +296,6 @@ describe('AiService', () => {
 
       expect(result.recommendations[0].type).toBe(MediaType.MOVIE);
     });
-
-    it('should use default text when fallback finds no text before JSON', async () => {
-      respond('[{"title":"Test","type":"movie","year":2020}]');
-
-      const result = await service.getRecommendations([mockList]);
-
-      expect(result.text).toBeTruthy();
-    });
   });
 
   // --- conversation content building ---
@@ -324,6 +306,7 @@ describe('AiService', () => {
         response: { text: jest.fn().mockReturnValue('t\n---JSON---\n[]') },
       });
     };
+
     it('should append media items to assistant messages', async () => {
       respond();
 
@@ -331,7 +314,7 @@ describe('AiService', () => {
 
       const contents = mockModel.generateContent.mock.calls[0][0].contents;
       const assistantMsg = contents.find(
-        (c: any) => c.role === MessageAuthor.ASSISTANT,
+        (c: any) => c.role === messageAuthorToRole[MessageAuthor.ASSISTANT],
       );
 
       expect(assistantMsg.parts[0].text).toContain('Inception (movie)');
@@ -348,7 +331,7 @@ describe('AiService', () => {
       const contents = mockModel.generateContent.mock.calls[0][0].contents;
       const last = contents[contents.length - 1];
 
-      expect(last.role).toBe(MessageAuthor.USER);
+      expect(last.role).toBe(messageAuthorToRole[MessageAuthor.USER]);
       expect(last.parts[0].fileData?.fileUri).toBe('test-file-uri');
     });
 

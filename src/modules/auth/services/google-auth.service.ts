@@ -1,7 +1,13 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 
+import { googleOAuthConfig } from 'src/config/google-oauth.config';
 import { TranslationKeys } from 'src/const/translations/keys';
 import { TranslationService } from 'src/modules/translation/translation.service';
 
@@ -12,14 +18,12 @@ export class GoogleAuthService {
   private logger = new Logger(GoogleAuthService.name);
 
   constructor(
-    private configService: ConfigService,
+    @Inject(googleOAuthConfig.KEY)
+    private readonly config: ConfigType<typeof googleOAuthConfig>,
     private i18n: TranslationService,
   ) {
-    this.clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
-    this.client = new OAuth2Client(
-      this.clientId,
-      this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
-    );
+    this.clientId = this.config.clientId;
+    this.client = new OAuth2Client(this.clientId, this.config.clientSecret);
   }
 
   async verifyGoogleToken(code: string) {

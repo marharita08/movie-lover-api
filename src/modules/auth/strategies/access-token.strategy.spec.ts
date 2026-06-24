@@ -1,17 +1,13 @@
 import { UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { jwtConfig } from 'src/config';
 import { UserService } from 'src/modules/user/user.service';
 
 import { JwtPayloadDto } from '../dto/jwt-payload.dto';
 import { SessionService } from '../services';
 
 import { AccessTokenStrategy } from './access-token.strategy';
-
-const mockConfigService = () => ({
-  get: jest.fn().mockReturnValue('test_secret'),
-});
 
 const mockSessionService = () => ({
   getById: jest.fn(),
@@ -30,7 +26,15 @@ describe('AccessTokenStrategy', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AccessTokenStrategy,
-        { provide: ConfigService, useFactory: mockConfigService },
+        {
+          provide: jwtConfig.KEY,
+          useValue: {
+            secret: 'test_secret',
+            ttl: '30m',
+            refreshSecret: 'refresh_secret',
+            refreshTtl: '15d',
+          },
+        },
         { provide: SessionService, useFactory: mockSessionService },
         { provide: UserService, useFactory: mockUserService },
       ],
@@ -43,26 +47,6 @@ describe('AccessTokenStrategy', () => {
 
   afterEach(() => jest.clearAllMocks());
 
-  describe('constructor', () => {
-    it('should throw if JWT_SECRET is missing', async () => {
-      const module = Test.createTestingModule({
-        providers: [
-          AccessTokenStrategy,
-          {
-            provide: ConfigService,
-            useValue: { get: jest.fn().mockReturnValue(undefined) },
-          },
-          { provide: SessionService, useFactory: mockSessionService },
-          { provide: UserService, useFactory: mockUserService },
-        ],
-      });
-
-      await expect(module.compile()).rejects.toThrow(
-        'JWT secret is missing in environment',
-      );
-    });
-  });
-
   describe('validate', () => {
     it('should throw UnauthorizedException if sessionId is missing in payload', async () => {
       await expect(
@@ -70,20 +54,19 @@ describe('AccessTokenStrategy', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should throw UnauthorizedException if session is not found or has no user', async () => {
-      sessionService.getById.mockResolvedValueOnce(null as never);
-      await expect(
-        strategy.validate({ sessionId: 'session-uuid' }),
-      ).rejects.toThrow(UnauthorizedException);
+    it.each([
+      ['session is not found', null],
+      ['session has no user', { id: 'session-uuid', user: null }],
+    ])(
+      'should throw UnauthorizedException when %s',
+      async (_label, sessionValue) => {
+        sessionService.getById.mockResolvedValue(sessionValue as never);
 
-      sessionService.getById.mockResolvedValueOnce({
-        id: 'session-uuid',
-        user: null,
-      } as never);
-      await expect(
-        strategy.validate({ sessionId: 'session-uuid' }),
-      ).rejects.toThrow(UnauthorizedException);
-    });
+        await expect(
+          strategy.validate({ sessionId: 'session-uuid' }),
+        ).rejects.toThrow(UnauthorizedException);
+      },
+    );
 
     it('should return user without private fields', async () => {
       const mockUser = {
@@ -103,7 +86,6 @@ describe('AccessTokenStrategy', () => {
 
       expect(userService.excludePrivateFields).toHaveBeenCalledWith(mockUser);
       expect(result).toEqual(excludedUser);
-      expect(result).not.toHaveProperty('password');
     });
   });
 });

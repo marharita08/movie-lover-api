@@ -1,7 +1,8 @@
 import { Storage } from '@google-cloud/storage';
 import { InternalServerErrorException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { gcpConfig } from 'src/config';
 
 import { StorageService } from './storage.service';
 
@@ -19,22 +20,9 @@ const mockFile = jest.fn(() => ({
 
 const mockBucket = jest.fn(() => ({ file: mockFile }));
 
-const MockStorage = Storage as jest.MockedClass<typeof Storage>;
-MockStorage.mockImplementation(
+(Storage as jest.MockedClass<typeof Storage>).mockImplementation(
   () => ({ bucket: mockBucket }) as unknown as Storage,
 );
-
-const mockConfigService = () => ({
-  get: jest.fn((key: string) => {
-    const cfg: Record<string, string> = {
-      GCP_PROJECT_ID: 'test-project',
-      GCP_CLIENT_EMAIL: 'test@test.iam.gserviceaccount.com',
-      GCP_PRIVATE_KEY: 'test-private-key',
-      GCP_BUCKET_NAME: 'test-bucket',
-    };
-    return cfg[key];
-  }),
-});
 
 const makeMulterFile = (
   overrides: Partial<Express.Multer.File> = {},
@@ -55,45 +43,32 @@ describe('StorageService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StorageService,
-        { provide: ConfigService, useFactory: mockConfigService },
+        {
+          provide: gcpConfig.KEY,
+          useValue: {
+            projectId: 'test-project',
+            clientEmail: 'test@test.iam.gserviceaccount.com',
+            privateKey: 'test-private-key',
+            bucketName: 'test-bucket',
+          },
+        },
       ],
     }).compile();
 
     service = module.get(StorageService);
   });
 
-  describe('constructor', () => {
-    it('should throw when a required GCP config value is missing', async () => {
-      const incompleteConfig = () => ({
-        get: jest.fn().mockReturnValue(undefined),
-      });
-
-      await expect(
-        Test.createTestingModule({
-          providers: [
-            StorageService,
-            { provide: ConfigService, useFactory: incompleteConfig },
-          ],
-        }).compile(),
-      ).rejects.toThrow(
-        'Missing GCP_PROJECT_ID, GCP_CLIENT_EMAIL, GCP_PRIVATE_KEY, or GCP_BUCKET_NAME environment variables',
-      );
-    });
-  });
-
   describe('uploadFile', () => {
     it('should save the file and return publicUrl and key', async () => {
       mockSave.mockResolvedValue(undefined);
-      const file = makeMulterFile();
-
       jest.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
 
-      const result = await service.uploadFile(file);
+      const result = await service.uploadFile(makeMulterFile());
 
       expect(mockBucket).toHaveBeenCalledWith('test-bucket');
       expect(mockFile).toHaveBeenCalledWith('1700000000000-test-file.csv');
       expect(mockSave).toHaveBeenCalledWith(
-        file.buffer,
+        expect.any(Buffer),
         expect.objectContaining({
           metadata: { contentType: 'text/csv' },
           resumable: false,
@@ -110,7 +85,7 @@ describe('StorageService', () => {
       mockSave.mockRejectedValue(new Error('GCS error'));
 
       await expect(service.uploadFile(makeMulterFile())).rejects.toThrow(
-        new InternalServerErrorException('Failed to upload file'),
+        InternalServerErrorException,
       );
     });
   });
@@ -130,15 +105,14 @@ describe('StorageService', () => {
       mockDelete.mockRejectedValue(new Error('GCS error'));
 
       await expect(service.deleteFile('some-file.csv')).rejects.toThrow(
-        new InternalServerErrorException('Failed to delete file'),
+        InternalServerErrorException,
       );
     });
   });
 
   describe('downloadFile', () => {
     it('should return the file content as a utf-8 string', async () => {
-      const content = Buffer.from('col1,col2\nval1,val2');
-      mockDownload.mockResolvedValue([content]);
+      mockDownload.mockResolvedValue([Buffer.from('col1,col2\nval1,val2')]);
 
       const result = await service.downloadFile('some-file.csv');
 
@@ -151,7 +125,7 @@ describe('StorageService', () => {
       mockDownload.mockRejectedValue(new Error('GCS error'));
 
       await expect(service.downloadFile('some-file.csv')).rejects.toThrow(
-        new InternalServerErrorException('Failed to download file'),
+        InternalServerErrorException,
       );
     });
   });

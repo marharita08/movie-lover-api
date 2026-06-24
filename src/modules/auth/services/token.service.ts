@@ -1,8 +1,14 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { StringValue } from 'ms';
 
+import { jwtConfig } from 'src/config/jwt.config';
 import { TranslationKeys } from 'src/const/translations/keys';
 import { Session } from 'src/entities';
 import { TranslationService } from 'src/modules/translation/translation.service';
@@ -18,7 +24,8 @@ export class TokenService {
   constructor(
     private jwtService: JwtService,
     private sessionService: SessionService,
-    private configService: ConfigService,
+    @Inject(jwtConfig.KEY)
+    private readonly config: ConfigType<typeof jwtConfig>,
     private i18n: TranslationService,
   ) {}
 
@@ -30,16 +37,13 @@ export class TokenService {
     const payload: JwtPayloadDto = { sessionId: session.id };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn:
-        (this.configService.get<string>('JWT_TTL') as StringValue) ?? '30m',
+      secret: this.config.secret,
+      expiresIn: this.config.ttl as StringValue,
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn:
-        (this.configService.get<string>('JWT_REFRESH_TTL') as StringValue) ??
-        '15d',
+      secret: this.config.refreshSecret,
+      expiresIn: this.config.refreshTtl as StringValue,
     });
 
     session.refreshToken = refreshToken;
@@ -51,7 +55,7 @@ export class TokenService {
   public async verifyAccessToken(token: string) {
     try {
       const payload = this.jwtService.verify(token, {
-        secret: this.configService.get<string>('JWT_SECRET'),
+        secret: this.config.secret,
       });
 
       if (!payload.sessionId) {
@@ -75,7 +79,7 @@ export class TokenService {
   public async verifyRefreshToken(token: string) {
     try {
       const payload = this.jwtService.verify(token, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        secret: this.config.refreshSecret,
       });
 
       if (!payload.sessionId) {

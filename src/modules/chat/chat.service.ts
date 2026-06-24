@@ -7,7 +7,6 @@ import {
   ChatMessage,
   ListStatus,
   MediaItemRecommendation,
-  MediaType,
   MessageAuthor,
 } from 'src/entities';
 import { PaginatedResponseDto } from 'src/modules/tmdb/dto';
@@ -15,10 +14,10 @@ import { TranslationService } from 'src/modules/translation/translation.service'
 
 import { AiService } from '../ai/ai.service';
 import { ListService } from '../list/list.service';
-import { TmdbService } from '../tmdb/tmdb.service';
 import { UserDto } from '../user/dto';
 
 import { ChatHistoryQueryDto } from './dto';
+import { MediaSearchService } from './media-search.service';
 
 @Injectable()
 export class ChatService {
@@ -29,7 +28,7 @@ export class ChatService {
     private readonly listService: ListService,
     @InjectRepository(ChatMessage)
     private readonly chatMessageRepository: Repository<ChatMessage>,
-    private readonly tmdbService: TmdbService,
+    private readonly mediaSearchService: MediaSearchService,
     private readonly i18n: TranslationService,
   ) {}
 
@@ -49,7 +48,7 @@ export class ChatService {
 
     const chatHistory = await this.getChatHistory(user.id, {
       page: 1,
-      limit: 11,
+      limit: 10,
     });
 
     const aiResponse = await this.aiService.getRecommendations(
@@ -57,84 +56,46 @@ export class ChatService {
       chatHistory.results.reverse(),
     );
 
+    if (aiResponse.recommendations.length === 0) {
+      const aiChatMessage = this.chatMessageRepository.create({
+        userId: user.id,
+        text: aiResponse.text,
+        author: MessageAuthor.ASSISTANT,
+        mediaItems: null,
+        isError: false,
+      });
+      return await this.chatMessageRepository.save(aiChatMessage);
+    }
+
     const mediaItemsResults = await Promise.allSettled(
-      aiResponse.recommendations.map(async (recommendation) => {
-        try {
-          if (recommendation.type === MediaType.MOVIE) {
-            const movies = await this.tmdbService.searchMovies({
-              query: recommendation.title,
-              year: recommendation.year,
-              language: user.language,
-            });
-
-            if (!movies.results || movies.results.length === 0) {
-              throw new Error(`Movie not found: ${recommendation.title}`);
-            }
-
-            const movie = movies.results[0];
-            return {
-              type: MediaType.MOVIE,
-              id: movie.id,
-              title: movie.title,
-              posterPath: movie.posterPath || null,
-            };
-          }
-
-          if (recommendation.type === MediaType.TV) {
-            const tvShows = await this.tmdbService.searchTVShows({
-              query: recommendation.title,
-              year: recommendation.year,
-              language: user.language,
-            });
-
-            if (!tvShows.results || tvShows.results.length === 0) {
-              throw new Error(`TV show not found: ${recommendation.title}`);
-            }
-
-            const tvShow = tvShows.results[0];
-            return {
-              type: MediaType.TV,
-              id: tvShow.id,
-              title: tvShow.name,
-              posterPath: tvShow.posterPath || null,
-            };
-          }
-
-          throw new Error('Unknown media type');
-        } catch (error) {
-          this.logger.error(
-            `Failed to fetch media item: ${recommendation.title} (${recommendation.year}) - ${recommendation.type}`,
-            error,
-          );
-          throw error;
-        }
-      }),
+      aiResponse.recommendations.map((recommendation) =>
+        this.mediaSearchService.resolveMediaItem(recommendation, user.language),
+      ),
     );
 
     const successfulMediaItems: MediaItemRecommendation[] = mediaItemsResults
       .filter((result) => result.status === 'fulfilled')
       .map((result) => result.value);
 
-    const failedResults = mediaItemsResults.filter(
+    const failedCount = mediaItemsResults.filter(
       (result) => result.status === 'rejected',
-    );
+    ).length;
 
-    if (failedResults.length > 0) {
+    if (failedCount > 0) {
       this.logger.warn(
-        `Failed to fetch ${failedResults.length} out of ${mediaItemsResults.length} recommendations`,
+        `Failed to fetch ${failedCount} out of ${mediaItemsResults.length} recommendations`,
       );
     }
 
-    const isAnySuccess = successfulMediaItems.length > 0;
-    const aiChatMessageText: string = isAnySuccess
-      ? aiResponse.text
-      : this.i18n.t(TranslationKeys.ERROR_RECOMMENDATIONS_FAILED);
+    const hasSuccessfulItems = successfulMediaItems.length > 0;
     const aiChatMessage = this.chatMessageRepository.create({
       userId: user.id,
-      text: aiChatMessageText,
+      text: hasSuccessfulItems
+        ? aiResponse.text
+        : this.i18n.t(TranslationKeys.ERROR_RECOMMENDATIONS_FAILED),
       author: MessageAuthor.ASSISTANT,
-      mediaItems: isAnySuccess ? successfulMediaItems : null,
-      isError: !isAnySuccess,
+      mediaItems: hasSuccessfulItems ? successfulMediaItems : null,
+      isError: !hasSuccessfulItems,
     });
 
     return await this.chatMessageRepository.save(aiChatMessage);
@@ -188,6 +149,7 @@ export class ChatService {
       totalResults,
     };
   }
+
   async clearChatHistory(userId: string) {
     return this.chatMessageRepository.delete({ userId });
   }

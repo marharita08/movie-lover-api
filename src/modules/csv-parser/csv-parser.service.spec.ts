@@ -2,8 +2,10 @@ import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { plainToClass } from 'class-transformer';
 import { validate, ValidationError } from 'class-validator';
-import { I18nService } from 'nestjs-i18n';
 import * as Papa from 'papaparse';
+
+import { TranslationKeys } from 'src/const/translations/keys';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 import { CsvParserService } from './csv-parser.service';
 
@@ -17,14 +19,20 @@ const mockedPlainToClass = plainToClass as jest.MockedFunction<
 >;
 const mockedValidate = validate as jest.MockedFunction<typeof validate>;
 
-const mockI18nService = {
-  t: jest.fn((key: string) => key),
-};
-
 class TestDto {
   name: string;
   year: string;
 }
+
+const makeValidationError = (
+  property: string,
+  constraints: Record<string, string>,
+): ValidationError => {
+  const error = new ValidationError();
+  error.property = property;
+  error.constraints = constraints;
+  return error;
+};
 
 describe('CsvParserService', () => {
   let service: CsvParserService;
@@ -33,7 +41,10 @@ describe('CsvParserService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CsvParserService,
-        { provide: I18nService, useValue: mockI18nService },
+        {
+          provide: TranslationService,
+          useValue: { t: jest.fn((key: string) => key) },
+        },
       ],
     }).compile();
 
@@ -62,18 +73,8 @@ describe('CsvParserService', () => {
     );
   };
 
-  const createValidationError = (
-    property: string,
-    constraints: Record<string, string>,
-  ): ValidationError => {
-    const error = new ValidationError();
-    error.property = property;
-    error.constraints = constraints;
-    return error;
-  };
-
   describe('parse', () => {
-    it('should return parsed rows', async () => {
+    it('should return parsed rows with default options', async () => {
       const rows = [
         { name: 'Inception', year: '2010' },
         { name: 'Interstellar', year: '2014' },
@@ -84,13 +85,6 @@ describe('CsvParserService', () => {
       const result = await service.parse('csv');
 
       expect(result).toEqual(rows);
-    });
-
-    it('should pass default options', async () => {
-      mockPapaComplete([]);
-
-      await service.parse('csv');
-
       expect(mockedPapa.parse).toHaveBeenCalledWith(
         'csv',
         expect.objectContaining({
@@ -121,7 +115,11 @@ describe('CsvParserService', () => {
   });
 
   describe('parseAndValidate', () => {
-    it('should throw if CSV is empty', async () => {
+    beforeEach(() => {
+      mockedPlainToClass.mockImplementation((_cls, v) => v as any);
+    });
+
+    it('should throw BadRequestException when CSV is empty', async () => {
       mockPapaComplete([]);
 
       await expect(
@@ -129,44 +127,95 @@ describe('CsvParserService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('should return valid rows', async () => {
+    it('should return valid rows when all pass validation', async () => {
       const rows = [
         { name: 'Inception', year: '2010' },
         { name: 'Interstellar', year: '2014' },
       ];
 
       mockPapaComplete(rows);
-      mockedPlainToClass.mockImplementation((_, v) => v as any);
       mockedValidate.mockResolvedValue([]);
 
       const result = await service.parseAndValidate('csv', TestDto);
 
       expect(result).toHaveLength(2);
+      expect(result).toEqual(rows);
     });
 
-    it('should throw when some rows are invalid (no message assertions)', async () => {
+    it('should throw BadRequestException and use VALIDATION_FAILED message when ≤5 rows invalid', async () => {
       const rows = [
-        { name: 'A', year: '2010' },
+        { name: 'Inception', year: '2010' },
         { name: '', year: '2014' },
       ];
 
       mockPapaComplete(rows);
-      mockedPlainToClass.mockImplementation((_, v) => v as any);
+      mockedValidate
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          makeValidationError('name', { isNotEmpty: 'name required' }),
+        ]);
 
-      mockedValidate.mockResolvedValueOnce([]).mockResolvedValueOnce([
-        createValidationError('name', {
-          isNotEmpty: 'required',
-        }),
+      await expect(service.parseAndValidate('csv', TestDto)).rejects.toThrow(
+        TranslationKeys.VALIDATION_FAILED,
+      );
+    });
+
+    it('should use VALIDATION_FAILED_ROWS message when >5 rows invalid', async () => {
+      const rows = Array.from({ length: 7 }, (_, i) => ({
+        name: '',
+        year: String(i),
+      }));
+
+      mockPapaComplete(rows);
+      mockedValidate.mockResolvedValue([
+        makeValidationError('name', { isNotEmpty: 'name required' }),
       ]);
+
+      await expect(service.parseAndValidate('csv', TestDto)).rejects.toThrow(
+        TranslationKeys.VALIDATION_FAILED_ROWS,
+      );
+    });
+
+    it('should include only valid rows in result and throw when any are invalid', async () => {
+      const rows = [
+        { name: 'Inception', year: '2010' },
+        { name: '', year: '2011' },
+        { name: 'Dune', year: '2021' },
+      ];
+
+      mockPapaComplete(rows);
+      mockedValidate
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          makeValidationError('name', { isNotEmpty: 'required' }),
+        ])
+        .mockResolvedValueOnce([]);
 
       await expect(
         service.parseAndValidate('csv', TestDto),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('should pass delimiter option', async () => {
+    it('should report at most 5 error details in the message even with more errors', async () => {
+      const rows = Array.from({ length: 15 }, (_, i) => ({
+        name: '',
+        year: String(i),
+      }));
+
+      mockPapaComplete(rows);
+      mockedValidate.mockResolvedValue([
+        makeValidationError('name', { isNotEmpty: 'required' }),
+      ]);
+
+      await expect(
+        service.parseAndValidate('csv', TestDto),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(mockedValidate).toHaveBeenCalledTimes(15);
+    });
+
+    it('should pass custom delimiter option to parser', async () => {
       mockPapaComplete([{ name: 'A', year: '1' }]);
-      mockedPlainToClass.mockImplementation((_, v) => v as any);
       mockedValidate.mockResolvedValue([]);
 
       await service.parseAndValidate('a;b', TestDto, { delimiter: ';' });
@@ -175,28 +224,6 @@ describe('CsvParserService', () => {
         'a;b',
         expect.objectContaining({ delimiter: ';' }),
       );
-    });
-
-    it('should collect valid rows even with invalid ones', async () => {
-      const rows = [
-        { name: 'A', year: '2010' },
-        { name: '', year: '2011' },
-        { name: 'C', year: '2012' },
-      ];
-
-      mockPapaComplete(rows);
-      mockedPlainToClass.mockImplementation((_, v) => v as any);
-
-      mockedValidate
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([
-          createValidationError('name', { isNotEmpty: 'required' }),
-        ])
-        .mockResolvedValueOnce([]);
-
-      await expect(
-        service.parseAndValidate('csv', TestDto),
-      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 });
