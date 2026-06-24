@@ -1,16 +1,18 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
+  HttpStatus,
   Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import type { ConfigType } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import rateLimit from 'axios-rate-limit';
 import type { Cache } from 'cache-manager';
 
+import { tmdbConfig } from 'src/config';
 import { TranslationKeys } from 'src/const/translations/keys';
 import { Language, MediaType } from 'src/entities';
 import { TranslationService } from 'src/modules/translation/translation.service';
@@ -51,22 +53,16 @@ export class TmdbService {
 
   constructor(
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    private readonly configService: ConfigService,
+    @Inject(tmdbConfig.KEY)
+    private readonly config: ConfigType<typeof tmdbConfig>,
     private readonly tmdbResponseMapperService: TmdbResponseMapperService,
     private readonly i18n: TranslationService,
   ) {
-    const token = this.configService.get<string>('TMDB_TOKEN');
-    const baseUrl = this.configService.get<string>('TMDB_URL');
-
-    if (!token || !baseUrl) {
-      throw new Error('TMDB_TOKEN or TMDB_URL is not set');
-    }
-
     const axiosInstance = axios.create({
-      baseURL: baseUrl,
+      baseURL: this.config.url,
       headers: {
         accept: 'application/json',
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${this.config.token}`,
       },
       timeout: 10000,
     });
@@ -143,7 +139,10 @@ export class TmdbService {
     } catch (error) {
       this.logger.error(`Error fetching movie details ${id}:`, error);
 
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
+      if (
+        axios.isAxiosError(error) &&
+        error.response?.status === HttpStatus.NOT_FOUND
+      ) {
         throw new NotFoundException(
           error.response.data?.status_message ||
             this.i18n.t(TranslationKeys.ERROR_MOVIE_NOT_FOUND),
@@ -233,7 +232,10 @@ export class TmdbService {
     } catch (error) {
       this.logger.error(`Error getting TV show details ${tvShowId}:`, error);
 
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
+      if (
+        axios.isAxiosError(error) &&
+        error.response?.status === HttpStatus.NOT_FOUND
+      ) {
         throw new NotFoundException(
           error.response.data?.status_message ||
             this.i18n.t(TranslationKeys.ERROR_TV_SHOW_NOT_FOUND),
@@ -326,7 +328,10 @@ export class TmdbService {
     } catch (error) {
       this.logger.error(`Error getting person ${personId}:`, error);
 
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
+      if (
+        axios.isAxiosError(error) &&
+        error.response?.status === HttpStatus.NOT_FOUND
+      ) {
         throw new NotFoundException(
           error.response.data?.status_message ||
             this.i18n.t(TranslationKeys.ERROR_PERSON_NOT_FOUND),

@@ -8,6 +8,7 @@ import { TmdbModule } from '../tmdb/tmdb.module';
 
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
+import { MediaSearchService } from './media-search.service';
 
 @Module({
   imports: [
@@ -17,6 +18,6 @@ import { ChatService } from './chat.service';
     TmdbModule,
   ],
   controllers: [ChatController],
-  providers: [ChatService],
+  providers: [ChatService, MediaSearchService],
 })
 export class ChatModule {}

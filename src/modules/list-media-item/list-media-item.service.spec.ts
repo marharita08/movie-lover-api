@@ -76,7 +76,7 @@ describe('ListMediaItemService', () => {
   afterEach(() => jest.clearAllMocks());
 
   describe('add', () => {
-    it('should create and save list media item with rating and date', async () => {
+    it('should create and save list media item with rating, date and position', async () => {
       const row = makeImdbRow();
       const mediaItem = makeMediaItem();
       const listMediaItem = makeListMediaItem();
@@ -85,9 +85,9 @@ describe('ListMediaItemService', () => {
       listMediaItemRepository.create.mockReturnValue(listMediaItem);
       listMediaItemRepository.save.mockResolvedValue(listMediaItem);
 
-      await service.add('list-uuid', row, 1, 'en-US' as never);
+      await service.add('list-uuid', row, 1);
 
-      expect(mediaItemService.getOrCreate).toHaveBeenCalledWith(row, 'en-US');
+      expect(mediaItemService.getOrCreate).toHaveBeenCalledWith(row);
       expect(listMediaItemRepository.create).toHaveBeenCalledWith({
         listId: 'list-uuid',
         mediaItemId: mediaItem.id,
@@ -98,73 +98,69 @@ describe('ListMediaItemService', () => {
       expect(listMediaItemRepository.save).toHaveBeenCalledWith(listMediaItem);
     });
 
-    it('should set userRating to null if Your Rating is missing', async () => {
-      const row = makeImdbRow({ 'Your Rating': '' });
-      const mediaItem = makeMediaItem();
-      const listMediaItem = makeListMediaItem({ userRating: null });
+    it.each([
+      ['Your Rating is missing', { 'Your Rating': '' }, { userRating: null }],
+      ['Date Rated is missing', { 'Date Rated': '' }, { dateRated: null }],
+      ['position is custom', {}, { position: 5 }],
+    ])(
+      'should handle when %s',
+      async (_label, rowOverrides, expectedOverrides) => {
+        const mediaItem = makeMediaItem();
+        const listMediaItem = makeListMediaItem(
+          expectedOverrides as Partial<ListMediaItem>,
+        );
 
-      mediaItemService.getOrCreate.mockResolvedValue(mediaItem as never);
-      listMediaItemRepository.create.mockReturnValue(listMediaItem);
-      listMediaItemRepository.save.mockResolvedValue(listMediaItem);
+        mediaItemService.getOrCreate.mockResolvedValue(mediaItem as never);
+        listMediaItemRepository.create.mockReturnValue(listMediaItem);
+        listMediaItemRepository.save.mockResolvedValue(listMediaItem);
 
-      await service.add('list-uuid', row, 1, 'en-US' as never);
+        const position =
+          'position' in expectedOverrides ? expectedOverrides.position : 1;
+        await service.add(
+          'list-uuid',
+          makeImdbRow(rowOverrides as Partial<IMDBRow>),
+          position,
+        );
 
-      expect(listMediaItemRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ userRating: null }),
-      );
-    });
+        expect(listMediaItemRepository.create).toHaveBeenCalledWith(
+          expect.objectContaining(expectedOverrides),
+        );
+      },
+    );
 
-    it('should set dateRated to null if Date Rated is missing', async () => {
-      const row = makeImdbRow({ 'Date Rated': '' });
-      const mediaItem = makeMediaItem();
-      const listMediaItem = makeListMediaItem({ dateRated: null });
-
-      mediaItemService.getOrCreate.mockResolvedValue(mediaItem as never);
-      listMediaItemRepository.create.mockReturnValue(listMediaItem);
-      listMediaItemRepository.save.mockResolvedValue(listMediaItem);
-
-      await service.add('list-uuid', row, 1, 'en-US' as never);
-
-      expect(listMediaItemRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ dateRated: null }),
-      );
-    });
-
-    it('should save with correct position', async () => {
-      const mediaItem = makeMediaItem();
-      const listMediaItem = makeListMediaItem({ position: 5 });
-
-      mediaItemService.getOrCreate.mockResolvedValue(mediaItem as never);
-      listMediaItemRepository.create.mockReturnValue(listMediaItem);
-      listMediaItemRepository.save.mockResolvedValue(listMediaItem);
-
-      await service.add('list-uuid', makeImdbRow(), 5, 'en-US' as never);
-
-      expect(listMediaItemRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ position: 5 }),
-      );
-    });
-
-    it('should not throw if mediaItemService.getOrCreate throws', async () => {
-      mediaItemService.getOrCreate.mockRejectedValue(new Error('TMDB error'));
+    it.each([
+      [
+        'mediaItemService.getOrCreate throws',
+        () =>
+          mediaItemService.getOrCreate.mockRejectedValue(
+            new Error('TMDB error'),
+          ),
+      ],
+      [
+        'repository.save throws',
+        () => {
+          mediaItemService.getOrCreate.mockResolvedValue(
+            makeMediaItem() as never,
+          );
+          listMediaItemRepository.create.mockReturnValue(makeListMediaItem());
+          listMediaItemRepository.save.mockRejectedValue(new Error('DB error'));
+        },
+      ],
+    ])('should not throw when %s', async (_label, setup) => {
+      setup();
 
       await expect(
-        service.add('list-uuid', makeImdbRow(), 1, 'en-US' as never),
+        service.add('list-uuid', makeImdbRow(), 1),
       ).resolves.not.toThrow();
+    });
+
+    it('should not call repository when getOrCreate fails', async () => {
+      mediaItemService.getOrCreate.mockRejectedValue(new Error('TMDB error'));
+
+      await service.add('list-uuid', makeImdbRow(), 1);
 
       expect(listMediaItemRepository.create).not.toHaveBeenCalled();
       expect(listMediaItemRepository.save).not.toHaveBeenCalled();
-    });
-
-    it('should not throw if repository.save throws', async () => {
-      const mediaItem = makeMediaItem();
-      mediaItemService.getOrCreate.mockResolvedValue(mediaItem as never);
-      listMediaItemRepository.create.mockReturnValue(makeListMediaItem());
-      listMediaItemRepository.save.mockRejectedValue(new Error('DB error'));
-
-      await expect(
-        service.add('list-uuid', makeImdbRow(), 1, 'en-US' as never),
-      ).resolves.not.toThrow();
     });
   });
 });

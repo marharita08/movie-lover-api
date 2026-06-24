@@ -1,17 +1,19 @@
 import { ValidationPipe } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ConfigType } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app.module';
+import { appConfig } from './config';
 import { injectUserMiddleware } from './modules/auth/middleware/inject-user.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
+
+  const config = app.get<ConfigType<typeof appConfig>>(appConfig.KEY);
 
   app.enableCors({
-    origin: configService.get<string>('FRONTEND_URL'),
+    origin: config.frontendUrl,
     credentials: true,
   });
   app.use(cookieParser());
@@ -28,6 +30,6 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(process.env.PORT ?? 3001);
+  await app.listen(config.port);
 }
 void bootstrap();

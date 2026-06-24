@@ -1,12 +1,24 @@
 import KeyvRedis from '@keyv/redis';
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigType } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { I18nModule } from 'nestjs-i18n';
 
+import {
+  appConfig,
+  brevoConfig,
+  databaseConfig,
+  gcpConfig,
+  geminiConfig,
+  googleOAuthConfig,
+  jwtConfig,
+  redisConfig,
+  tmdbConfig,
+} from './config';
 import { Language } from './entities';
+import { envValidationSchema } from './config/env.validation';
 import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AccessTokenGuard } from './modules/auth/guards';
@@ -23,18 +35,29 @@ import { TypeormModule } from './modules/typeorm/typeorm.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validationSchema: envValidationSchema,
+      validationOptions: { abortEarly: false },
+      load: [
+        appConfig,
+        jwtConfig,
+        brevoConfig,
+        databaseConfig,
+        tmdbConfig,
+        gcpConfig,
+        redisConfig,
+        geminiConfig,
+        googleOAuthConfig,
+      ],
+    }),
     CacheModule.registerAsync({
       isGlobal: true,
       imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        stores: [
-          new KeyvRedis(
-            `redis://${configService.get('REDIS_HOST')}:${configService.get('REDIS_PORT')}`,
-          ),
-        ],
-        ttl: configService.get<number>('CACHE_TTL'),
+      inject: [redisConfig.KEY],
+      useFactory: (config: ConfigType<typeof redisConfig>) => ({
+        stores: [new KeyvRedis(config.url)],
+        ttl: config.cacheTtl,
       }),
     }),
     ScheduleModule.forRoot(),

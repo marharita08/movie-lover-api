@@ -11,7 +11,6 @@ import { ILike, Repository } from 'typeorm';
 
 import { TranslationKeys } from 'src/const/translations/keys';
 import {
-  Language,
   List,
   ListMediaItem,
   ListStatus,
@@ -122,7 +121,7 @@ export class ListService {
     });
 
     const savedList = await this.listRepository.save(list);
-    void this.processList(savedList.id, user.language || Language.ENGLISH);
+    void this.processList(savedList);
 
     return savedList;
   }
@@ -182,11 +181,8 @@ export class ListService {
     await this.listRepository.delete(list.id);
   }
 
-  private async processList(listId: string, language: Language): Promise<void> {
+  private async processList(list: List): Promise<void> {
     try {
-      const list = await this.listRepository.findOne({ where: { id: listId } });
-      if (!list) return;
-
       const csvContent = await this.fileService.download(list.fileId);
       const rows = await this.csvParserService.parseAndValidate(
         csvContent,
@@ -203,7 +199,7 @@ export class ListService {
           .filter((row) => !row['Title Type']?.includes('Episode'));
         await Promise.all(
           batch.map((row, index) =>
-            this.listMediaItemService.add(list.id, row, i + index, language),
+            this.listMediaItemService.add(list.id, row, i + index),
           ),
         );
 
@@ -215,11 +211,11 @@ export class ListService {
       list.status = ListStatus.COMPLETED;
       await this.listRepository.save(list);
 
-      this.logger.log(`List ${listId} processing completed`);
+      this.logger.log(`List ${list.id} processing completed`);
     } catch (error) {
-      this.logger.error(`Error processing list ${listId}:`, error);
+      this.logger.error(`Error processing list ${list.id}:`, error);
 
-      await this.listRepository.update(listId, {
+      await this.listRepository.update(list.id, {
         status: ListStatus.FAILED,
         errorMessage: getErrorMessage(error),
       });

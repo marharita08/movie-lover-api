@@ -1,11 +1,11 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
 import { User } from 'src/entities';
 import { FileService } from 'src/modules/file/file.service';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 import { UserService } from './user.service';
 
@@ -37,13 +37,11 @@ describe('UserService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        {
-          provide: I18nService,
-          useValue: {
-            t: jest.fn((key: string) => key),
-          },
-        },
         UserService,
+        {
+          provide: TranslationService,
+          useValue: { t: jest.fn((key: string) => key) },
+        },
         { provide: getRepositoryToken(User), useFactory: mockUserRepository },
         { provide: FileService, useFactory: mockFileService },
       ],
@@ -57,9 +55,8 @@ describe('UserService', () => {
   afterEach(() => jest.clearAllMocks());
 
   describe('getById', () => {
-    it('should return UserDto without passwordHash', async () => {
-      const user = makeUser();
-      userRepository.findOne.mockResolvedValue(user);
+    it('should return UserDto without private fields', async () => {
+      userRepository.findOne.mockResolvedValue(makeUser());
 
       const result = await service.getById('uuid-1');
 
@@ -84,15 +81,13 @@ describe('UserService', () => {
       const user = makeUser();
       userRepository.findOne.mockResolvedValue(user);
 
-      const result = await service.getByEmail('test@example.com');
-      expect(result).toBe(user);
+      expect(await service.getByEmail('test@example.com')).toBe(user);
     });
 
     it('should return null if user is not found', async () => {
       userRepository.findOne.mockResolvedValue(null);
 
-      const result = await service.getByEmail('missing@example.com');
-      expect(result).toBeNull();
+      expect(await service.getByEmail('missing@example.com')).toBeNull();
     });
   });
 
@@ -101,8 +96,7 @@ describe('UserService', () => {
       const user = makeUser();
       userRepository.findOne.mockResolvedValue(user);
 
-      const result = await service.getByEmailOrThrow('test@example.com');
-      expect(result).toBe(user);
+      expect(await service.getByEmailOrThrow('test@example.com')).toBe(user);
     });
 
     it('should throw NotFoundException if user is not found', async () => {
@@ -114,8 +108,26 @@ describe('UserService', () => {
     });
   });
 
+  describe('getByGoogleId', () => {
+    it('should return user if found', async () => {
+      const user = makeUser({ googleId: 'google-id-123' });
+      userRepository.findOne.mockResolvedValue(user);
+
+      expect(await service.getByGoogleId('google-id-123')).toBe(user);
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { googleId: 'google-id-123' },
+      });
+    });
+
+    it('should return null if user is not found', async () => {
+      userRepository.findOne.mockResolvedValue(null);
+
+      expect(await service.getByGoogleId('unknown')).toBeNull();
+    });
+  });
+
   describe('create', () => {
-    it('should create and return user without passwordHash', async () => {
+    it('should create, save and return UserDto without private fields', async () => {
       const user = makeUser();
       userRepository.create.mockReturnValue(user);
 
@@ -134,7 +146,7 @@ describe('UserService', () => {
   });
 
   describe('update', () => {
-    it('should update and return user without passwordHash', async () => {
+    it('should update, save and return UserDto without private fields', async () => {
       const user = makeUser();
       userRepository.findOne.mockResolvedValue(user);
 
@@ -167,7 +179,7 @@ describe('UserService', () => {
       expect(userRepository.remove).toHaveBeenCalledWith(user);
     });
 
-    it('should throw NotFoundException if user is not found', async () => {
+    it('should throw NotFoundException and skip deletion when user is not found', async () => {
       userRepository.findOne.mockResolvedValue(null);
 
       await expect(service.delete('not-exist')).rejects.toThrow(

@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigType } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { appConfig, databaseConfig } from 'src/config';
+import { NodeEnv } from 'src/config/node-env.enum';
 import {
   ChatMessage,
   File,
@@ -20,14 +22,17 @@ import {
   imports: [
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+      inject: [databaseConfig.KEY, appConfig.KEY],
+      useFactory: (
+        dbConfig: ConfigType<typeof databaseConfig>,
+        app: ConfigType<typeof appConfig>,
+      ) => ({
         type: 'postgres',
-        host: config.get<string>('DB_HOST'),
-        port: config.get<number>('DB_PORT'),
-        username: config.get<string>('DB_USERNAME'),
-        password: config.get<string>('DB_PASSWORD'),
-        database: config.get<string>('DB_NAME'),
+        host: dbConfig.host,
+        port: dbConfig.port,
+        username: dbConfig.username,
+        password: dbConfig.password,
+        database: dbConfig.name,
         entities: [
           ChatMessage,
           User,
@@ -41,8 +46,8 @@ import {
           Person,
           MediaPerson,
         ],
-        synchronize: config.get<string>('NODE_ENV') !== 'production',
-        migrationsRun: config.get<string>('NODE_ENV') === 'production',
+        synchronize: app.nodeEnv === NodeEnv.DEVELOPMENT,
+        migrationsRun: app.nodeEnv === NodeEnv.PRODUCTION,
         migrations: [__dirname + '/../../migrations/*.js'],
       }),
     }),

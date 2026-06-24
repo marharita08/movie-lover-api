@@ -1,7 +1,9 @@
 import { UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OAuth2Client } from 'google-auth-library';
+
+import { googleOAuthConfig } from 'src/config/google-oauth.config';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 import { GoogleAuthService } from './google-auth.service';
 
@@ -19,23 +21,23 @@ const mockGetPayload = jest.fn();
 describe('GoogleAuthService', () => {
   let service: GoogleAuthService;
 
-  const mockConfigService = {
-    get: jest.fn((key: string) => {
-      const config: Record<string, string> = {
-        GOOGLE_CLIENT_ID: 'mock-client-id',
-        GOOGLE_CLIENT_SECRET: 'mock-client-secret',
-      };
-      return config[key];
-    }),
-  };
-
   beforeEach(async () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GoogleAuthService,
-        { provide: ConfigService, useValue: mockConfigService },
+        {
+          provide: googleOAuthConfig.KEY,
+          useValue: {
+            clientId: 'mock-client-id',
+            clientSecret: 'mock-client-secret',
+          },
+        },
+        {
+          provide: TranslationService,
+          useValue: { t: jest.fn((key: string) => key) },
+        },
       ],
     }).compile();
 
@@ -43,21 +45,10 @@ describe('GoogleAuthService', () => {
   });
 
   describe('constructor', () => {
-    it('should be defined', () => {
-      expect(service).toBeDefined();
-    });
-
     it('should initialize OAuth2Client with config values', () => {
       expect(OAuth2Client).toHaveBeenCalledWith(
         'mock-client-id',
         'mock-client-secret',
-      );
-    });
-
-    it('should read GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from config', () => {
-      expect(mockConfigService.get).toHaveBeenCalledWith('GOOGLE_CLIENT_ID');
-      expect(mockConfigService.get).toHaveBeenCalledWith(
-        'GOOGLE_CLIENT_SECRET',
       );
     });
   });
@@ -65,7 +56,6 @@ describe('GoogleAuthService', () => {
   describe('verifyGoogleToken', () => {
     const mockCode = 'mock-auth-code';
     const mockIdToken = 'mock-id-token';
-
     const mockPayload = {
       sub: 'google-user-id-123',
       email: 'user@example.com',
@@ -81,6 +71,14 @@ describe('GoogleAuthService', () => {
     it('should return user data on successful verification', async () => {
       const result = await service.verifyGoogleToken(mockCode);
 
+      expect(mockGetToken).toHaveBeenCalledWith({
+        code: mockCode,
+        redirect_uri: 'postmessage',
+      });
+      expect(mockVerifyIdToken).toHaveBeenCalledWith({
+        idToken: mockIdToken,
+        audience: 'mock-client-id',
+      });
       expect(result).toEqual({
         googleId: 'google-user-id-123',
         email: 'user@example.com',
@@ -88,78 +86,44 @@ describe('GoogleAuthService', () => {
       });
     });
 
-    it('should call getToken with correct params', async () => {
-      await service.verifyGoogleToken(mockCode);
-
-      expect(mockGetToken).toHaveBeenCalledWith({
-        code: mockCode,
-        redirect_uri: 'postmessage',
-      });
-    });
-
-    it('should call verifyIdToken with correct params', async () => {
-      await service.verifyGoogleToken(mockCode);
-
-      expect(mockVerifyIdToken).toHaveBeenCalledWith({
-        idToken: mockIdToken,
-        audience: 'mock-client-id',
-      });
-    });
-
-    it('should throw UnauthorizedException when payload has no sub', async () => {
-      mockGetPayload.mockReturnValue({ email: 'user@example.com', sub: null });
-
-      await expect(service.verifyGoogleToken(mockCode)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it('should throw UnauthorizedException when payload has no email', async () => {
-      mockGetPayload.mockReturnValue({ sub: 'google-id', email: null });
-
-      await expect(service.verifyGoogleToken(mockCode)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it('should throw UnauthorizedException when payload is null', async () => {
-      mockGetPayload.mockReturnValue(null);
-
-      await expect(service.verifyGoogleToken(mockCode)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it('should throw UnauthorizedException when getToken fails', async () => {
-      mockGetToken.mockRejectedValue(new Error('Network error'));
-
-      await expect(service.verifyGoogleToken(mockCode)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it('should throw UnauthorizedException when verifyIdToken fails', async () => {
-      mockVerifyIdToken.mockRejectedValue(new Error('Invalid token'));
-
-      await expect(service.verifyGoogleToken(mockCode)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
     it('should handle payload with undefined name', async () => {
-      mockGetPayload.mockReturnValue({
-        sub: 'google-user-id-123',
-        email: 'user@example.com',
-        name: undefined,
-      });
+      mockGetPayload.mockReturnValue({ ...mockPayload, name: undefined });
 
       const result = await service.verifyGoogleToken(mockCode);
 
-      expect(result).toEqual({
-        googleId: 'google-user-id-123',
-        email: 'user@example.com',
-        name: undefined,
-      });
+      expect(result.name).toBeUndefined();
+    });
+
+    it.each([
+      ['payload is null', null],
+      ['sub is missing', { email: 'user@example.com', sub: null }],
+      ['email is missing', { sub: 'google-id', email: null }],
+    ])(
+      'should throw UnauthorizedException when %s',
+      async (_label, payload) => {
+        mockGetPayload.mockReturnValue(payload);
+
+        await expect(service.verifyGoogleToken(mockCode)).rejects.toThrow(
+          UnauthorizedException,
+        );
+      },
+    );
+
+    it.each([
+      [
+        'getToken fails',
+        () => mockGetToken.mockRejectedValue(new Error('Network error')),
+      ],
+      [
+        'verifyIdToken fails',
+        () => mockVerifyIdToken.mockRejectedValue(new Error('Invalid token')),
+      ],
+    ])('should throw UnauthorizedException when %s', async (_label, setup) => {
+      setup();
+
+      await expect(service.verifyGoogleToken(mockCode)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 });

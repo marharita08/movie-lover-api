@@ -64,6 +64,16 @@ export const uk: Record<TranslationKeys, string> = {
     'Не вдалось обробити файл списку. Будь ласка, спробуйте ще раз.',
   [TranslationKeys.ERROR_AI_RESPONSE_PARSE_FAILED]:
     'Не вдалось обробити рекомендації. Будь ласка, спробуйте ще раз.',
-  [TranslationKeys.AI_RECOMMENDATIONS_DEFAULT_RESPONSE]:
-    'Ось мої рекомендації:',
+  [TranslationKeys.ERROR_AI_RATE_LIMIT]:
+    'Забагато запитів до служби штучного інтелекту. Будь ласка, спробуйте пізніше.',
+  [TranslationKeys.ERROR_AI_SAFETY_BLOCK]:
+    'Запит не може бути оброблений через обмеження безпеки. Будь ласка, змініть формулювання та спробуйте ще раз.',
+  [TranslationKeys.ERROR_AI_UNEXPECTED_ERROR]:
+    'Неочікувана помилка сталася при отриманні відповіді від ШІ.',
+  [TranslationKeys.ERROR_CSV_NO_FILE]: 'Файл не надано',
+  [TranslationKeys.ERROR_CSV_INVALID_EXTENSION]:
+    'Невірне розширення файлу. Очікується .csv, але отримано {extension}',
+  [TranslationKeys.ERROR_CSV_INVALID_MIME_TYPE]:
+    'Невірний MIME-тип. Очікується CSV, але отримано {mimeType}',
+  [TranslationKeys.ERROR_CSV_FILE_EMPTY]: 'Файл порожній',
 };

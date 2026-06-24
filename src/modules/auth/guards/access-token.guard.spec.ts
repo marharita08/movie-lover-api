@@ -1,4 +1,4 @@
-import { ExecutionContext } from '@nestjs/common';
+import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 
@@ -6,11 +6,13 @@ import { IS_PUBLIC_KEY } from '../decorators';
 
 import { AccessTokenGuard } from './access-token.guard';
 
-const mockExecutionContext = (): ExecutionContext =>
+const mockExecutionContext = (user?: object): ExecutionContext =>
   ({
     getHandler: jest.fn(),
     getClass: jest.fn(),
-    switchToHttp: jest.fn(),
+    switchToHttp: jest.fn().mockReturnValue({
+      getRequest: jest.fn().mockReturnValue({ user }),
+    }),
   }) as unknown as ExecutionContext;
 
 describe('AccessTokenGuard', () => {
@@ -21,12 +23,7 @@ describe('AccessTokenGuard', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AccessTokenGuard,
-        {
-          provide: Reflector,
-          useValue: {
-            getAllAndOverride: jest.fn(),
-          },
-        },
+        { provide: Reflector, useValue: { getAllAndOverride: jest.fn() } },
       ],
     }).compile();
 
@@ -40,40 +37,24 @@ describe('AccessTokenGuard', () => {
     reflector.getAllAndOverride.mockReturnValue(true);
     const context = mockExecutionContext();
 
-    const result = guard.canActivate(context);
-
+    expect(guard.canActivate(context)).toBe(true);
     expect(reflector.getAllAndOverride).toHaveBeenCalledWith(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-    expect(result).toBe(true);
   });
 
-  it('should call super.canActivate if route is not public', () => {
+  it('should return true if route is not public and request has user', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
-    const context = mockExecutionContext();
+    const context = mockExecutionContext({ id: 'user-uuid' });
 
-    const superCanActivate = jest
-      .spyOn(Object.getPrototypeOf(AccessTokenGuard.prototype), 'canActivate')
-      .mockReturnValue(true);
-
-    const result = guard.canActivate(context);
-
-    expect(superCanActivate).toHaveBeenCalledWith(context);
-    expect(result).toBe(true);
+    expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('should call super.canActivate if isPublic is undefined', () => {
-    reflector.getAllAndOverride.mockReturnValue(undefined);
-    const context = mockExecutionContext();
+  it('should throw UnauthorizedException if route is not public and request has no user', () => {
+    reflector.getAllAndOverride.mockReturnValue(false);
+    const context = mockExecutionContext(undefined);
 
-    const superCanActivate = jest
-      .spyOn(Object.getPrototypeOf(AccessTokenGuard.prototype), 'canActivate')
-      .mockReturnValue(false);
-
-    const result = guard.canActivate(context);
-
-    expect(superCanActivate).toHaveBeenCalledWith(context);
-    expect(result).toBe(false);
+    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
   });
 });

@@ -1,10 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { I18nService } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 
 import { Otp, OtpPurpose } from 'src/entities';
+import { TranslationService } from 'src/modules/translation/translation.service';
 
 import { OtpService } from './otp.service';
 
@@ -33,13 +33,11 @@ describe('OtpService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        {
-          provide: I18nService,
-          useValue: {
-            t: jest.fn((key: string) => key),
-          },
-        },
         OtpService,
+        {
+          provide: TranslationService,
+          useValue: { t: jest.fn((key: string) => key) },
+        },
         { provide: getRepositoryToken(Otp), useFactory: mockOtpRepository },
       ],
     }).compile();
@@ -62,8 +60,8 @@ describe('OtpService', () => {
 
   describe('create', () => {
     it('should create and save a new OTP when no previous OTP exists', async () => {
-      otpRepository.findOne.mockResolvedValue(null);
       const newOtp = makeOtp();
+      otpRepository.findOne.mockResolvedValue(null);
       otpRepository.create.mockReturnValue(newOtp);
       otpRepository.save.mockResolvedValue(newOtp);
       jest.spyOn(service, 'generateCode').mockReturnValue(1234);
@@ -80,15 +78,14 @@ describe('OtpService', () => {
         },
       });
       expect(otpRepository.remove).not.toHaveBeenCalled();
-      expect(otpRepository.create).toHaveBeenCalled();
       expect(otpRepository.save).toHaveBeenCalledWith(newOtp);
       expect(code).toBe(1234);
     });
 
-    it('should remove the old OTP and create a new one when cooldown has passed', async () => {
+    it('should remove old OTP and create a new one when cooldown has passed', async () => {
       const oldOtp = makeOtp({ createdAt: new Date(Date.now() - 120_000) });
-      otpRepository.findOne.mockResolvedValue(oldOtp);
       const newOtp = makeOtp({ code: 5678 });
+      otpRepository.findOne.mockResolvedValue(oldOtp);
       otpRepository.create.mockReturnValue(newOtp);
       otpRepository.save.mockResolvedValue(newOtp);
       jest.spyOn(service, 'generateCode').mockReturnValue(5678);
@@ -114,15 +111,6 @@ describe('OtpService', () => {
       expect(otpRepository.remove).not.toHaveBeenCalled();
       expect(otpRepository.save).not.toHaveBeenCalled();
     });
-
-    it('should include remaining seconds in the cooldown error message', async () => {
-      const recentOtp = makeOtp({ createdAt: new Date(Date.now() - 20_000) }); // 20s ago
-      otpRepository.findOne.mockResolvedValue(recentOtp);
-
-      await expect(
-        service.create('test@example.com', OtpPurpose.EMAIL_VERIFICATION),
-      ).rejects.toThrow(BadRequestException);
-    });
   });
 
   describe('verifyAndDelete', () => {
@@ -146,23 +134,11 @@ describe('OtpService', () => {
       expect(otpRepository.remove).toHaveBeenCalledWith(otp);
     });
 
-    it('should throw BadRequestException when OTP is not found', async () => {
-      otpRepository.findOne.mockResolvedValue(null);
-
-      await expect(
-        service.verifyAndDelete(
-          'test@example.com',
-          9999,
-          OtpPurpose.EMAIL_VERIFICATION,
-        ),
-      ).rejects.toThrow(BadRequestException);
-
-      expect(otpRepository.remove).not.toHaveBeenCalled();
-    });
-
-    it('should throw BadRequestException when OTP is expired', async () => {
-      const expiredOtp = makeOtp({ expiresAt: new Date(Date.now() - 1000) }); // expired 1s ago
-      otpRepository.findOne.mockResolvedValue(expiredOtp);
+    it.each([
+      ['OTP is not found', null],
+      ['OTP is expired', makeOtp({ expiresAt: new Date(Date.now() - 1000) })],
+    ])('should throw BadRequestException when %s', async (_label, otpValue) => {
+      otpRepository.findOne.mockResolvedValue(otpValue as never);
 
       await expect(
         service.verifyAndDelete(
