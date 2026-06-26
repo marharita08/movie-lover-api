@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, In, MoreThan, Repository } from 'typeorm';
+import { Between, In, Repository } from 'typeorm';
 
 import { MediaItem, MediaType, PersonRole } from 'src/entities';
 import { MediaPersonService } from 'src/modules/media-person/media-person.service';
@@ -178,7 +178,6 @@ export class MediaItemService {
         where: {
           type: MediaType.TV,
           status: In(['Returning Series', 'In Production']),
-          nextEpisodeAirDate: MoreThan(tomorrow),
         },
         take: BATCH_SIZE,
         skip: offset,
