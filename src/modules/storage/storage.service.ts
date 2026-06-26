@@ -9,6 +9,12 @@ import type { ConfigType } from '@nestjs/config';
 
 import { gcpConfig } from 'src/config';
 
+interface CleanupOrphanFilesResult {
+  deleted: number;
+  failed: number;
+  skipped: number;
+}
+
 @Injectable()
 export class StorageService {
   private readonly storage: Storage;
@@ -73,13 +79,16 @@ export class StorageService {
     }
   }
 
-  async findOrphanKeys(
+  async cleanupOrphanFiles(
     dbKeys: Set<string>,
     safetyBufferMs = 3600_000,
-  ): Promise<string[]> {
+  ): Promise<CleanupOrphanFilesResult> {
     const bucket = this.storage.bucket(this.config.bucketName);
-    const orphans: string[] = [];
+
     let pageToken: string | undefined;
+    let deleted = 0;
+    let failed = 0;
+    let skipped = 0;
 
     do {
       const [files, , response] = await bucket.getFiles({
@@ -87,19 +96,40 @@ export class StorageService {
         pageToken,
       });
 
-      for (const file of files) {
+      const orphansOnPage = files.filter((file) => {
+        if (!file.metadata.timeCreated) {
+          this.logger.warn(
+            `File "${file.name}" is missing timeCreated metadata, skipping.`,
+          );
+          skipped++;
+          return false;
+        }
+
         const isOldEnough =
-          Date.now() - new Date(file.metadata.timeCreated!).getTime() >
+          Date.now() - new Date(file.metadata.timeCreated).getTime() >
           safetyBufferMs;
 
-        if (!dbKeys.has(file.name) && isOldEnough) {
-          orphans.push(file.name);
+        return !dbKeys.has(file.name) && isOldEnough;
+      });
+
+      const results = await Promise.allSettled(
+        orphansOnPage.map((file) => file.delete()),
+      );
+
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          deleted++;
+        } else {
+          failed++;
+          this.logger.error(
+            `Failed to delete orphan file "${orphansOnPage[index].name}": ${result.reason}`,
+          );
         }
-      }
+      });
 
       pageToken = (response as { pageToken?: string })?.pageToken;
     } while (pageToken);
 
-    return orphans;
+    return { deleted, failed, skipped };
   }
 }

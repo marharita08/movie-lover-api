@@ -48,6 +48,7 @@ import {
 interface UploadedFile {
   uri: string;
   name: string;
+  listName: string;
 }
 
 interface ModelConfig {
@@ -106,10 +107,7 @@ export class AiService {
     try {
       uploadedFiles = await this.uploadListFiles(userLists);
 
-      const systemPrompt = this.buildSystemPromptWithFiles(
-        userLists.length,
-        userLists.reduce((sum, list) => sum + list.totalItems, 0),
-      );
+      const systemPrompt = this.buildSystemPromptWithFiles(userLists);
 
       const conversationHistory = this.buildConversationHistory(chatHistory);
       const contentsWithFiles = this.addFilesToHistory(
@@ -342,7 +340,7 @@ export class AiService {
 
         this.logger.debug(`Uploaded file to Gemini: ${list.name}`);
 
-        return { uri: file.uri, name: file.name };
+        return { uri: file.uri, name: file.name, listName: list.name };
       } catch (error) {
         this.logger.error(
           `Failed to process file for list ${list.name}:`,
@@ -397,18 +395,20 @@ export class AiService {
     );
   }
 
-  private buildSystemPromptWithFiles(
-    listsCount: number,
-    totalItems: number,
-  ): string {
+  private buildSystemPromptWithFiles(userLists: List[]): string {
     const today = new Date().toISOString().split('T')[0];
 
     const listsContext =
-      listsCount > 0
+      userLists.length > 0
         ? LISTS_CONTEXT_WITH_FILES.replace(
             '{{LISTS_COUNT}}',
-            listsCount.toString(),
-          ).replace('{{TOTAL_ITEMS}}', totalItems.toString())
+            userLists.length.toString(),
+          ).replace(
+            '{{LISTS_NAMES}}',
+            userLists
+              .map((l) => `- "${l.name}" (${l.totalItems} items)`)
+              .join('\n'),
+          )
         : LISTS_CONTEXT_NO_FILES;
 
     return RECOMMENDATIONS_PROMPT.replace(
@@ -434,12 +434,15 @@ export class AiService {
         {
           ...lastMessage,
           parts: [
-            ...uploadedFiles.map((file) => ({
-              fileData: {
-                mimeType: 'text/csv',
-                fileUri: file.uri,
+            ...uploadedFiles.flatMap((file) => [
+              { text: `List name: "${file.listName}"` },
+              {
+                fileData: {
+                  mimeType: 'text/csv',
+                  fileUri: file.uri,
+                },
               },
-            })),
+            ]),
             ...lastMessage.parts,
           ],
         },
