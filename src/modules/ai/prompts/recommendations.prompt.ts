@@ -83,7 +83,11 @@ ${JSON_SEPARATOR}
   }
 ]`;
 
-export const LISTS_CONTEXT_WITH_FILES = `The user has uploaded {{LISTS_COUNT}} CSV file(s) containing their IMDb lists with a total of {{TOTAL_ITEMS}} movies and TV shows.
+export const LISTS_CONTEXT_WITH_FILES = `The user has uploaded {{LISTS_COUNT}} CSV file(s) containing their IMDb lists with a total of {{TOTAL_ITEMS}} movies and TV shows:
+
+{{LISTS_NAMES}}
+
+Each file is preceded by a text part stating its list name (e.g. "List name: 'Watched'"), so you can tell which CSV belongs to which list. The list name often indicates its purpose (e.g. "Watched", "Watchlist", "Favorites", "Disliked") — use it to understand the context of each file when forming recommendations.
 
 Each CSV file contains the following columns:
 - Title: The name of the movie/TV show
@@ -93,7 +97,7 @@ Each CSV file contains the following columns:
 - Your Rating: User's personal rating (if rated)
 - Genres: Comma-separated list of genres
 
-Analyze these CSV files to understand the user's viewing preferences and history. Do NOT recommend any titles that appear in these files unless the user explicitly asks for recommendations from their existing lists.`;
+Analyze these CSV files, taking each list's name into account, to understand the user's viewing preferences and history. For example, treat titles from a "disliked" or similarly named list as negative signals rather than viewing history to draw similarities from. Do NOT recommend any titles that appear in these files unless the user explicitly asks for recommendations from their existing lists.`;
 
 export const LISTS_CONTEXT_NO_FILES =
   'The user has no lists uploaded yet. Provide general recommendations based on the query.';

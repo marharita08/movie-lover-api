@@ -176,7 +176,6 @@ describe('AiService', () => {
     await expect(service.getRecommendations([mockList])).rejects.toThrow(
       ServiceUnavailableException,
     );
-    // 2 моделі × 3 спроби = 6
     expect(mockGenerateContent).toHaveBeenCalledTimes(6);
   });
 
@@ -190,7 +189,6 @@ describe('AiService', () => {
     await expect(service.getRecommendations([mockList])).rejects.toThrow(
       InternalServerErrorException,
     );
-    // По 1 спробі на кожну модель = 2
     expect(mockGenerateContent).toHaveBeenCalledTimes(2);
   });
 
@@ -283,7 +281,8 @@ describe('AiService', () => {
       (c: any) => c.role === messageAuthorToRole[MessageAuthor.ASSISTANT],
     );
 
-    expect(last.parts[0].fileData?.fileUri).toBe('fu');
+    expect(last.parts[0].text).toBe('List name: "Watchlist"');
+    expect(last.parts[1].fileData?.fileUri).toBe('fu');
     expect(assistant.parts[0].text).toContain('Inception (movie)');
   });
 });
