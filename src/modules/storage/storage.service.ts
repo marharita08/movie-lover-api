@@ -72,4 +72,34 @@ export class StorageService {
       throw new InternalServerErrorException('Failed to download file');
     }
   }
+
+  async findOrphanKeys(
+    dbKeys: Set<string>,
+    safetyBufferMs = 3600_000,
+  ): Promise<string[]> {
+    const bucket = this.storage.bucket(this.config.bucketName);
+    const orphans: string[] = [];
+    let pageToken: string | undefined;
+
+    do {
+      const [files, , response] = await bucket.getFiles({
+        maxResults: 1000,
+        pageToken,
+      });
+
+      for (const file of files) {
+        const isOldEnough =
+          Date.now() - new Date(file.metadata.timeCreated!).getTime() >
+          safetyBufferMs;
+
+        if (!dbKeys.has(file.name) && isOldEnough) {
+          orphans.push(file.name);
+        }
+      }
+
+      pageToken = (response as { pageToken?: string })?.pageToken;
+    } while (pageToken);
+
+    return orphans;
+  }
 }
