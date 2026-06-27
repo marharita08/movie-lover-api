@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -85,7 +85,7 @@ export class FileService {
     return this.storageService.downloadFile(file.key);
   }
 
-  @Cron('0 3 27 * *')
+  @Cron(CronExpression.EVERY_DAY_AT_5PM)
   async handleOrphanCleanup(): Promise<void> {
     this.logger.log('Starting orphan files cleanup in GCS...');
 
