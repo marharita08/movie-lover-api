@@ -8,6 +8,7 @@ import {
 import type { ConfigType } from '@nestjs/config';
 
 import { gcpConfig } from 'src/config';
+import { CLEANUP_FILES_SAFETY_BUFFER_MS } from 'src/const/cleanup-files-safety-buffer';
 
 interface CleanupOrphanFilesResult {
   deleted: number;
@@ -81,7 +82,7 @@ export class StorageService {
 
   async cleanupOrphanFiles(
     dbKeys: Set<string>,
-    safetyBufferMs = 3600_000,
+    safetyBufferMs = CLEANUP_FILES_SAFETY_BUFFER_MS,
   ): Promise<CleanupOrphanFilesResult> {
     const bucket = this.storage.bucket(this.config.bucketName);
 
