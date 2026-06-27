@@ -47,8 +47,6 @@ import {
           MediaPerson,
         ],
         synchronize: app.nodeEnv === NodeEnv.DEVELOPMENT,
-        migrationsRun: app.nodeEnv === NodeEnv.PRODUCTION,
-        migrations: [__dirname + '/../../migrations/*.js'],
       }),
     }),
   ],
