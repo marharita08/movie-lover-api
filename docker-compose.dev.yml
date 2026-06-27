@@ -11,9 +11,6 @@ services:
       - NODE_ENV=development
       - REDIS_HOST=redis
       - DB_HOST=db
-      - CHOKIDAR_USEPOLLING=true
-      - CHOKIDAR_INTERVAL=1000
-      - WATCHPACK_POLLING=true  
     volumes:
       - .:/app
       - /app/node_modules
