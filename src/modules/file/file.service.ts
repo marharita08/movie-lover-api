@@ -87,7 +87,7 @@ export class FileService {
     );
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_3PM)
+  @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
   async handleFilesWithoutListCleanup(): Promise<void> {
     this.logger.log('Starting cleanup of files not linked to any list...');
 
