@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import { CLEANUP_FILES_SAFETY_BUFFER_MS } from 'src/const/cleanup-files-safety-buffer';
 import { TranslationKeys } from 'src/const/translations/keys';
 import { File } from 'src/entities';
 import { StorageService } from 'src/modules/storage/storage.service';
@@ -61,22 +62,7 @@ export class FileService {
 
   async deleteByUserId(userId: string): Promise<void> {
     const files = await this.fileRepository.find({ where: { userId } });
-
-    const results = await Promise.allSettled(
-      files.map((file) => this.storageService.deleteFile(file.key)),
-    );
-
-    const filesToDelete = files.filter((_, index) => {
-      const result = results[index];
-      if (result.status === 'rejected') {
-        this.logger.error(
-          `Failed to delete file "${files[index].key}" from storage: ${result.reason}`,
-        );
-        return false;
-      }
-      return true;
-    });
-
+    const filesToDelete = await this.deleteFromStorage(files);
     await this.fileRepository.remove(filesToDelete);
   }
 
@@ -85,7 +71,7 @@ export class FileService {
     return this.storageService.downloadFile(file.key);
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_5PM)
+  @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
   async handleOrphanCleanup(): Promise<void> {
     this.logger.log('Starting orphan files cleanup in GCS...');
 
@@ -99,5 +85,48 @@ export class FileService {
     this.logger.log(
       `Orphan cleanup finished. Deleted: ${deleted}, Failed: ${failed}, Skipped (missing timeCreated): ${skipped}.`,
     );
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_3PM)
+  async handleFilesWithoutListCleanup(): Promise<void> {
+    this.logger.log('Starting cleanup of files not linked to any list...');
+
+    const cutoffDate = new Date(Date.now() - CLEANUP_FILES_SAFETY_BUFFER_MS);
+
+    const filesWithoutList = await this.fileRepository
+      .createQueryBuilder('file')
+      .leftJoin('file.list', 'list')
+      .where('list.id IS NULL')
+      .andWhere('file.createdAt < :cutoffDate', { cutoffDate })
+      .getMany();
+
+    if (filesWithoutList.length === 0) {
+      this.logger.log('No files without a list found.');
+      return;
+    }
+
+    const filesToRemove = await this.deleteFromStorage(filesWithoutList);
+    await this.fileRepository.remove(filesToRemove);
+
+    this.logger.log(
+      `Files-without-list cleanup finished. Deleted: ${filesToRemove.length}, Failed: ${filesWithoutList.length - filesToRemove.length}.`,
+    );
+  }
+
+  private async deleteFromStorage(files: File[]): Promise<File[]> {
+    const results = await Promise.allSettled(
+      files.map((file) => this.storageService.deleteFile(file.key)),
+    );
+
+    return files.filter((file, index) => {
+      const result = results[index];
+      if (result.status === 'rejected') {
+        this.logger.error(
+          `Failed to delete file "${file.key}" from storage: ${result.reason}`,
+        );
+        return false;
+      }
+      return true;
+    });
   }
 }
